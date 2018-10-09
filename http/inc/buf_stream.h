@@ -22,6 +22,7 @@ public:
     std::size_t epos() const;
 
     bool is_end() const;
+    void clear();
 
     std::uint8_t& getc() const;
     void bump(std::size_t size);

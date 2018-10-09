@@ -6,6 +6,7 @@ rwg_http::buf_stream::buf_stream(rwg_http::buffer& buffer)
     , _pos(0)
     , _epos(buffer.size()) {
 
+    this->_buffer.fill(0, this->_epos, 0x00);
 }
 
 std::size_t rwg_http::buf_stream::bpos() const {
@@ -22,6 +23,10 @@ std::size_t rwg_http::buf_stream::epos() const {
 
 bool rwg_http::buf_stream::is_end() const {
     return this->_pos == this->_epos;
+}
+
+void rwg_http::buf_stream::clear() {
+    this->_buffer.fill(this->_bpos, this->_epos, 0x00);
 }
 
 std::uint8_t& rwg_http::buf_stream::getc() const {
