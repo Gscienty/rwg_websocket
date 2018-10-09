@@ -95,9 +95,8 @@ std::uint8_t& rwg_http::buffer::operator[] (const std::size_t pos) {
     if (pos >= this->_size) {
         throw std::out_of_range("rwg_http::buffer::operator[]: out of range");
     }
-    std::size_t unit_pos = pos / this->_unit_size;
 
-    return this->_units[unit_pos].second[pos % this->_unit_size];
+    return this->_units[pos / this->_unit_size].second[pos % this->_unit_size];
 }
 
 std::size_t rwg_http::buffer::size() const {
@@ -108,3 +107,16 @@ std::size_t rwg_http::buffer::avail_size() const {
     return this->_units.size() * this->_unit_size;
 }
 
+void rwg_http::buffer::fill(const std::size_t begin_pos, const std::size_t end_pos, const std::uint8_t val) {
+    if (begin_pos >= end_pos) {
+        return;
+    }
+
+    if (begin_pos >= this->_size || end_pos > this->_size) {
+        throw std::out_of_range("rwg_http::buffer::operator[]: out of range");
+    }
+
+    for (auto pos = begin_pos; pos < end_pos; pos++) {
+        this->_units[pos / this->_unit_size].second[pos % this->_unit_size] = val;
+    }
+}

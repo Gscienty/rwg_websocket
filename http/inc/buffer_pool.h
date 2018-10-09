@@ -29,6 +29,7 @@ public:
     std::size_t size() const;
     std::size_t avail_size() const;
     void recover();
+    void fill(const std::size_t begin_pos, const std::size_t end_pos, const std::uint8_t val);
 
     template<typename _T_Iter> void assign(_T_Iter begin, _T_Iter end) {
         std::size_t pos = 0;
