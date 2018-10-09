@@ -130,6 +130,21 @@ TEST(buffer_pool, insert_) {
     EXPECT_EQ(0, buffer[110]);
 }
 
+TEST(buffer_pool, copy_to) {
+    rwg_http::buffer_pool pool(128, 1);
+    auto buffer = pool.alloc(128);
+    auto str = "1111111111";
+    buffer.assign(str, str + 11);
+
+    std::uint8_t ret[11];
+    buffer.copy_to(0, 11, ret);
+
+    for (int i = 0; i < 10; i++) {
+        EXPECT_EQ('1', ret[i]);
+    }
+    EXPECT_EQ(0, ret[10]);
+}
+
 int main() {
     return RUN_ALL_TESTS();
 }

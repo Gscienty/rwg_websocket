@@ -55,6 +55,22 @@ public:
         }
         return ret;
     }
+
+    template<typename _T_Output_Iter> void copy_to(const std::size_t begin_pos, const std::size_t end_pos, _T_Output_Iter output_itr) {
+        if (begin_pos >= end_pos) {
+            return;
+        }
+
+        if (begin_pos >= this->_size || end_pos > this->_size) {
+            throw std::out_of_range("rwg_http::buffer_pool::copty_to: out of range");
+        }
+
+        _T_Output_Iter itr = output_itr;
+        for (auto pos = begin_pos; pos < end_pos; pos++) {
+            *itr = this->_units[pos / this->_unit_size].second[pos % this->_unit_size];
+            itr++;
+        }
+    }
 };
 
 class buffer_pool {
