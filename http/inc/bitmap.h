@@ -24,7 +24,7 @@ public:
     bitmap(std::size_t bits_size);
     virtual ~bitmap();
 
-    rwg_http::bit operator[](const std::size_t pos);
+    rwg_http::bit operator[](const std::size_t pos) const;
     std::size_t size() const;
     std::size_t units_size() const;
     void fill(const std::size_t start_pos, const std::size_t end_pos, const bool bit);

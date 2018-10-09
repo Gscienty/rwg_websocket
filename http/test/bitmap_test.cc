@@ -113,6 +113,21 @@ TEST(bitmap, fill) {
    EXPECT_TRUE(bitmap.ensure(0, 80, true));
    bitmap[40] = false;
    EXPECT_FALSE(bitmap.ensure(0, 80, true));
+
+   bitmap.fill(0, 10, false);
+   bitmap.fill(0, 2, true);
+   EXPECT_TRUE(bitmap.ensure(0, 2, true));
+}
+
+TEST(bitmap, one_byte) {
+    rwg_http::bitmap bitmap(8);
+
+    bitmap.fill(0, 2, true);
+    bitmap.fill(5, 8, true);
+
+    EXPECT_TRUE(bitmap.ensure(0, 2, true));
+    EXPECT_TRUE(bitmap.ensure(2, 5, false));
+    EXPECT_TRUE(bitmap.ensure(5, 8, true));
 }
 
 int main() {

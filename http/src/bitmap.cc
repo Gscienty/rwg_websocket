@@ -25,12 +25,12 @@ rwg_http::bitmap::bitmap(std::size_t bits_size)
 rwg_http::bitmap::~bitmap() {
 }
 
-rwg_http::bit rwg_http::bitmap::operator[](const std::size_t pos) {
+rwg_http::bit rwg_http::bitmap::operator[](const std::size_t pos) const {
     if (pos >= this->_bits_size) {
         throw std::out_of_range("rwg_http::bitmap operator[]: out of range");
     }
 
-    return rwg_http::bit(this->_bits.get()[__inl_outside_nth_unit(pos)], __inl_mask_bit(pos));
+    return rwg_http::bit(this->_bits[__inl_outside_nth_unit(pos)], __inl_mask_bit(pos));
 }
 
 std::size_t rwg_http::bitmap::size() const {
@@ -62,17 +62,27 @@ void rwg_http::bitmap::fill(const std::size_t start_pos, const std::size_t end_p
     std::uint8_t endunit_mask = static_cast<std::uint8_t>(__inl_mask_bit(end_pos) - 1);
 
     if (bit) {
-        this->_bits.get()[startunit] |= startunit_mask;
-        this->_bits.get()[endunit] |= endunit_mask;
+        if (startunit == endunit) {
+            std::uint8_t mask = startunit_mask & endunit_mask;
+            this->_bits[startunit] |= mask;
+            return;
+        }
+        this->_bits[startunit] |= startunit_mask;
+        this->_bits[endunit] |= endunit_mask;
         for (auto i = startunit + 1; i < endunit; i++) {
-            this->_bits.get()[i] |= 0xFF;
+            this->_bits[i] |= 0xFF;
         }
     }
     else {
-        this->_bits.get()[startunit] &= ~startunit_mask;
-        this->_bits.get()[endunit] &= ~endunit_mask;
+        if (startunit == endunit) {
+            std::uint8_t mask = startunit_mask & endunit_mask;
+            this->_bits[startunit] &= ~mask;
+            return;
+        }
+        this->_bits[startunit] &= ~startunit_mask;
+        this->_bits[endunit] &= ~endunit_mask;
         for (auto i = startunit + 1; i < endunit; i++) {
-            this->_bits.get()[i] &= 0x00;
+            this->_bits[i] &= 0x00;
         }
     }
 }
@@ -98,27 +108,37 @@ bool rwg_http::bitmap::ensure(const std::size_t start_pos, const std::size_t end
     std::uint8_t endunit_mask = static_cast<std::uint8_t>(__inl_mask_bit(end_pos) - 1);
 
     if (bit) {
-        if ((this->_bits.get()[startunit] & startunit_mask) != startunit_mask) {
+        if (startunit == endunit) {
+            std::uint8_t mask = startunit_mask & endunit_mask;
+            return (this->_bits[startunit] & mask) == mask;
+        }
+
+        if ((this->_bits[startunit] & startunit_mask) != startunit_mask) {
             return false;
         }
-        if ((this->_bits.get()[endunit] & endunit_mask) != endunit_mask) {
+        if ((this->_bits[endunit] & endunit_mask) != endunit_mask) {
             return false;
         }
         for (auto i = startunit + 1; i < endunit; i++) {
-            if (this->_bits.get()[i] != 0xFF) {
+            if (this->_bits[i] != 0xFF) {
                 return false;
             }
         }
     }
     else {
-        if ((this->_bits.get()[startunit] & startunit_mask) != 0x00) {
+        if (startunit == endunit) {
+            std::uint8_t mask = startunit_mask & endunit_mask;
+            return (this->_bits[startunit] & mask) == 0x00;
+        }
+
+        if ((this->_bits[startunit] & startunit_mask) != 0x00) {
             return false;
         }
-        if ((this->_bits.get()[endunit] & endunit_mask) != 0x00) {
+        if ((this->_bits[endunit] & endunit_mask) != 0x00) {
             return false;
         }
         for (auto i = startunit + 1; i < endunit; i++) {
-            if (this->_bits.get()[i] != 0x00) {
+            if (this->_bits[i] != 0x00) {
                 return false;
             }
         }
