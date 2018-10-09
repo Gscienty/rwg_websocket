@@ -104,7 +104,8 @@ TEST(buffer_pool, assign_) {
 
     auto buffer = pool.alloc(128);
 
-    buffer.assign(reinterpret_cast<const std::uint8_t*>("1111111111"), 11);
+    auto str = "1111111111";
+    buffer.assign(str, str + 11);
 
     for (int i = 0; i < 10; i++) {
         EXPECT_EQ('1', buffer[i]);
@@ -118,9 +119,9 @@ TEST(buffer_pool, insert_) {
 
     auto buffer = pool.alloc(128);
 
-    const uint8_t* str = reinterpret_cast<const uint8_t*>("1111111111");
+    auto str = "1111111111";
 
-    auto ret = buffer.insert(100, str, str + 11);
+    auto ret = buffer.insert(str, str + 11, 100);
     EXPECT_EQ(11, ret);
     
     for (int i = 100; i < 100 + 10; i++) {

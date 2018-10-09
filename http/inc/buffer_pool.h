@@ -29,8 +29,32 @@ public:
     std::size_t size() const;
     std::size_t avail_size() const;
     void recover();
-    void assign(const std::uint8_t* s, std::size_t n);
-    std::size_t insert(const std::size_t pos, const std::uint8_t* begin, const std::uint8_t* end);
+
+    template<typename _T_Iter> void assign(_T_Iter begin, _T_Iter end) {
+        std::size_t pos = 0;
+        for (auto itr = begin; itr != end; itr++) {
+            if (pos >= this->_size) {
+                return;
+            }
+            this->_units[pos / this->_unit_size].second[pos % this->_unit_size] = *itr;
+            pos++;
+        }
+    }
+
+    template<typename _T_Input_Iter> std::size_t insert(_T_Input_Iter begin, _T_Input_Iter end, const std::size_t pos) {
+        std::size_t ret = 0;
+        size_t realpos = pos;
+        for (auto iter = begin; iter != end; iter++) {
+            if (realpos >= this->_size) {
+                break;
+            }
+
+            this->_units[realpos / this->_unit_size].second[realpos % this->_unit_size] = *iter;
+            realpos++;
+            ret++;
+        }
+        return ret;
+    }
 };
 
 class buffer_pool {
