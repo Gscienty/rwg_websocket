@@ -1,6 +1,6 @@
 #include "buffer_pool.h"
 #include <stdexcept>
-#include <iostream>
+#include <algorithm>
 
 rwg_http::buffer_pool::buffer_pool(std::size_t unit_size, std::size_t unit_count)
     : _pool(new std::uint8_t[unit_size * unit_count])
@@ -106,4 +106,45 @@ std::size_t rwg_http::buffer::size() const {
 
 std::size_t rwg_http::buffer::avail_size() const {
     return this->_units.size() * this->_unit_size;
+}
+
+void rwg_http::buffer::assign(const std::uint8_t* s, std::size_t n) {
+    if (n > this->_size) {
+        throw std::out_of_range("rwg_http::buffer::assign: out of range");
+    }
+
+    std::uint8_t* assign_s = const_cast<std::uint8_t*>(s);
+    std::size_t remain = n;
+    auto unit_iter = this->_units.begin();
+
+    while (remain != 0) {
+        std::size_t assign_size = std::min(this->_unit_size, remain);
+
+        std::copy(assign_s, assign_s + assign_size, unit_iter->second);
+
+        assign_s += assign_size;
+        remain -= assign_size;
+        unit_iter++;
+    }
+}
+
+std::size_t rwg_http::buffer::insert(const std::size_t pos, const std::uint8_t* begin, const std::uint8_t* end) {
+    if (pos >= this->_size) {
+        throw std::out_of_range("rwg_http::buffer::insert::insert: out of range");
+    }
+
+    std::size_t ret = 0;
+    std::size_t realpos = pos;
+
+    for (std::uint8_t* byte_val = const_cast<std::uint8_t*>(begin); byte_val != end; byte_val++) {
+        if (realpos >= this->_size) {
+            break;
+        }
+
+        this->_units[realpos / this->_unit_size].second[realpos % this->_unit_size] = *byte_val;
+        realpos++;
+        ret++;
+    }
+
+    return ret;
 }

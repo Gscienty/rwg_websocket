@@ -99,6 +99,36 @@ TEST(buffer_pool, alloc_overflow_2) {
     }
 }
 
+TEST(buffer_pool, assign_) {
+    rwg_http::buffer_pool pool(128, 1);
+
+    auto buffer = pool.alloc(128);
+
+    buffer.assign(reinterpret_cast<const std::uint8_t*>("1111111111"), 11);
+
+    for (int i = 0; i < 10; i++) {
+        EXPECT_EQ('1', buffer[i]);
+    }
+
+    EXPECT_EQ(0, buffer[10]);
+}
+
+TEST(buffer_pool, insert_) {
+    rwg_http::buffer_pool pool(128, 1);
+
+    auto buffer = pool.alloc(128);
+
+    const uint8_t* str = reinterpret_cast<const uint8_t*>("1111111111");
+
+    auto ret = buffer.insert(100, str, str + 11);
+    EXPECT_EQ(11, ret);
+    
+    for (int i = 100; i < 100 + 10; i++) {
+        EXPECT_EQ('1', buffer[i]);
+    }
+    EXPECT_EQ(0, buffer[110]);
+}
+
 int main() {
     return RUN_ALL_TESTS();
 }

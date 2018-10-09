@@ -29,6 +29,8 @@ public:
     std::size_t size() const;
     std::size_t avail_size() const;
     void recover();
+    void assign(const std::uint8_t* s, std::size_t n);
+    std::size_t insert(const std::size_t pos, const std::uint8_t* begin, const std::uint8_t* end);
 };
 
 class buffer_pool {
