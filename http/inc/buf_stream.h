@@ -37,6 +37,7 @@ public:
     template<typename _T_Input_Iter> std::size_t puts(_T_Input_Iter begin, _T_Input_Iter end) {
         auto put_size = this->_buffer.insert(begin, end, this->_pos);
         this->bump(put_size);
+        return put_size;
     }
 };
 
