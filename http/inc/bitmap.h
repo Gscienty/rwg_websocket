@@ -28,6 +28,7 @@ public:
     std::size_t size() const;
     std::size_t units_size() const;
     void fill(const std::size_t start_pos, const std::size_t end_pos, const bool bit);
+    bool ensure(const std::size_t start_pos, const std::size_t end_pos, const bool bit) const;
 };
 
 }

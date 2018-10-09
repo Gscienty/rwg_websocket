@@ -77,6 +77,56 @@ void rwg_http::bitmap::fill(const std::size_t start_pos, const std::size_t end_p
     }
 }
 
+bool rwg_http::bitmap::ensure(const std::size_t start_pos, const std::size_t end_pos, const bool bit) const {
+    if (start_pos > end_pos) {
+        throw std::out_of_range("rwg_http::bitmap fill: start_pos great than end_pos");
+    }
+    if (start_pos >= this->_bits_size) {
+        throw std::out_of_range("rwg_http::bitmap fill: start_pos out of range");
+    }
+    if (end_pos > this->_bits_size) {
+        throw std::out_of_range("rwg_http::bitmap fill: end_pos out of range");
+    }
+
+    if (start_pos == end_pos) {
+        return true;
+    }
+
+    std::size_t startunit = __inl_outside_nth_unit(start_pos);
+    std::uint8_t startunit_mask = static_cast<std::uint8_t>(0xFF - (__inl_mask_bit(start_pos) - 1));
+    std::size_t endunit = __inl_outside_nth_unit(end_pos);
+    std::uint8_t endunit_mask = static_cast<std::uint8_t>(__inl_mask_bit(end_pos) - 1);
+
+    if (bit) {
+        if ((this->_bits.get()[startunit] & startunit_mask) != startunit_mask) {
+            return false;
+        }
+        if ((this->_bits.get()[endunit] & endunit_mask) != endunit_mask) {
+            return false;
+        }
+        for (auto i = startunit + 1; i < endunit; i++) {
+            if (this->_bits.get()[i] != 0xFF) {
+                return false;
+            }
+        }
+    }
+    else {
+        if ((this->_bits.get()[startunit] & startunit_mask) != 0x00) {
+            return false;
+        }
+        if ((this->_bits.get()[endunit] & endunit_mask) != 0x00) {
+            return false;
+        }
+        for (auto i = startunit + 1; i < endunit; i++) {
+            if (this->_bits.get()[i] != 0x00) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 rwg_http::bit::bit(std::uint8_t& ref_byte, std::uint8_t mask_byte)
     : _ref_byte(ref_byte)
     , _mask_byte(mask_byte) {}

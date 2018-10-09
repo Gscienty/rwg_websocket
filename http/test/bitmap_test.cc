@@ -99,24 +99,20 @@ TEST(bitmap, fill) {
    bitmap.fill(50, 80, true);
    bitmap.fill(60, 70, false);
 
-   for (auto i = 0; i < 10; i++) {
-       EXPECT_FALSE(bitmap[i]);
-   }
-   for (auto i = 10; i < 20; i++) {
-       EXPECT_TRUE(bitmap[i]);
-   }
-   for (auto i = 20; i < 50; i++) {
-       EXPECT_FALSE(bitmap[i]);
-   }
-   for (auto i = 50; i < 60; i++) {
-       EXPECT_TRUE(bitmap[i]);
-   }
-   for (auto i = 60; i < 70; i++) {
-       EXPECT_FALSE(bitmap[i]);
-   }
-   for (auto i = 70; i < 80; i++) {
-       EXPECT_TRUE(bitmap[i]);
-   }
+   EXPECT_TRUE(bitmap.ensure(0, 10, false));
+   EXPECT_TRUE(bitmap.ensure(10, 20, true));
+   EXPECT_TRUE(bitmap.ensure(20, 50, false));
+   EXPECT_TRUE(bitmap.ensure(50, 60, true));
+   EXPECT_TRUE(bitmap.ensure(60, 70, false));
+   EXPECT_TRUE(bitmap.ensure(70, 80, true));
+
+   EXPECT_FALSE(bitmap.ensure(0, 20, true));
+   EXPECT_FALSE(bitmap.ensure(0, 20, false));
+
+   bitmap.fill(0, 80, true);
+   EXPECT_TRUE(bitmap.ensure(0, 80, true));
+   bitmap[40] = false;
+   EXPECT_FALSE(bitmap.ensure(0, 80, true));
 }
 
 int main() {
