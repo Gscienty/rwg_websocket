@@ -72,6 +72,7 @@ rwg_http::buffer::buffer(std::function<void (std::function<void (std::function<v
                          std::vector<std::pair<std::size_t, std::uint8_t*>> units)
     : _unit_size(unit_size)
     , _size(size)
+    , _unit_off(0)
     , _recover(recover)
     , _units(units) {}
 
@@ -96,7 +97,8 @@ std::uint8_t& rwg_http::buffer::operator[] (const std::size_t pos) {
         throw std::out_of_range("rwg_http::buffer::operator[]: out of range");
     }
 
-    return this->_units[pos / this->_unit_size].second[pos % this->_unit_size];
+    return this->_units[(this->_unit_off + pos / this->_unit_size) % this->_units.size()]
+        .second[pos % this->_unit_size];
 }
 
 std::size_t rwg_http::buffer::size() const {
@@ -105,6 +107,10 @@ std::size_t rwg_http::buffer::size() const {
 
 std::size_t rwg_http::buffer::avail_size() const {
     return this->_units.size() * this->_unit_size;
+}
+
+std::size_t rwg_http::buffer::unit_size() const {
+    return this->_unit_size;
 }
 
 void rwg_http::buffer::fill(const std::size_t begin_pos, const std::size_t end_pos, const std::uint8_t val) {
@@ -117,14 +123,23 @@ void rwg_http::buffer::fill(const std::size_t begin_pos, const std::size_t end_p
     }
 
     for (auto pos = begin_pos; pos < end_pos; pos++) {
-        this->_units[pos / this->_unit_size].second[pos % this->_unit_size] = val;
+        this->_units[(this->_unit_off + pos / this->_unit_size) % this->_units.size()]
+            .second[pos % this->_unit_size] = val;
     }
 }
 
-std::uint8_t* rwg_http::buffer::unit(std::size_t n) const {
+std::uint8_t* rwg_http::buffer::unit(const std::size_t n) const {
     if (n >= this->_units.size()) {
         throw std::out_of_range("rwg_http::buffer::unit: out of range");
     }
 
     return this->_units[n].second;
 }
+
+void rwg_http::buffer::head_move_tail() {
+    this->_unit_off = (this->_unit_off + 1) % this->_units.size();
+}
+
+std::size_t rwg_http::buffer::unit_index(const std::size_t pos) const {
+    return pos / this->_unit_size;
+};

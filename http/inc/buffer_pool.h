@@ -16,6 +16,7 @@ class buffer {
 private:
     const std::size_t _unit_size;
     const std::size_t _size;
+    std::size_t _unit_off;
     std::function<void (std::function<void (std::function<void (std::size_t pos)>)> func)> _recover;
     std::vector<std::pair<std::size_t, std::uint8_t*>> _units;
 public:
@@ -28,10 +29,14 @@ public:
     std::uint8_t& operator[] (const std::size_t pos);
     std::size_t size() const;
     std::size_t avail_size() const;
+    std::size_t unit_size() const;
     void recover();
     void fill(const std::size_t begin_pos, const std::size_t end_pos, const std::uint8_t val);
 
-    std::uint8_t* unit(std::size_t n) const;
+    std::uint8_t* unit(const std::size_t n) const;
+    std::size_t unit_index(const std::size_t pos) const;
+
+    void head_move_tail();
 
     template<typename _T_Iter> std::size_t assign(_T_Iter begin, _T_Iter end) {
         std::size_t pos = 0;
@@ -39,7 +44,8 @@ public:
             if (pos >= this->_size) {
                 return pos;
             }
-            this->_units[pos / this->_unit_size].second[pos % this->_unit_size] = *itr;
+            this->_units[(this->_unit_off + pos / this->_unit_size) % this->_units.size()]
+                .second[pos % this->_unit_size] = *itr;
             pos++;
         }
 
@@ -54,7 +60,8 @@ public:
                 break;
             }
 
-            this->_units[realpos / this->_unit_size].second[realpos % this->_unit_size] = *iter;
+            this->_units[(this->_unit_off + realpos / this->_unit_size) % this->_units.size()]
+                .second[realpos % this->_unit_size] = *iter;
             realpos++;
             ret++;
         }
@@ -72,7 +79,8 @@ public:
 
         _T_Output_Iter itr = output_itr;
         for (auto pos = begin_pos; pos < end_pos; pos++) {
-            *itr = this->_units[pos / this->_unit_size].second[pos % this->_unit_size];
+            *itr = this->_units[(this->_unit_off + pos / this->_unit_size) % this->_units.size()]
+                .second[pos % this->_unit_size];
             itr++;
         }
     }
