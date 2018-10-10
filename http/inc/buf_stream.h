@@ -6,6 +6,9 @@
 #include <algorithm>
 #include <mutex>
 #include <condition_variable>
+#include <functional>
+
+#include <iostream>
 
 namespace rwg_http {
 
@@ -13,66 +16,86 @@ class buf_stream {
 private:
     rwg_http::buffer& _buffer;
     std::size_t _bpos;
-    std::size_t _pos;
     std::size_t _epos;
 
     std::mutex _use_mtx;
-    std::condition_variable _useable_cond;
-    std::condition_variable _unuseable_cond;
+    std::condition_variable _readable_cond;
+    std::condition_variable _writable_cond;
 
-    void bump(std::size_t size);
-    void wait_useable(std::unique_lock<std::mutex>& locker);
-    void wait_unuseable(std::unique_lock<std::mutex>& locker);
+    std::function<void ()> _readable_event;
+    std::function<void ()> _writable_event;
+
+    void wait_readable(std::unique_lock<std::mutex>& locker);
+    void wait_writable(std::unique_lock<std::mutex>& locker);
+
+    void notify_readable();
+    void notify_writable();
 public:
     buf_stream(rwg_http::buffer& buffer);
 
     std::size_t bpos() const;
-    std::size_t pos() const;
     std::size_t epos() const;
 
-    bool is_end() const;
+    void set_readable_event(std::function<void ()> func);
+    void set_writable_event(std::function<void ()> func);
+
     void clear();
 
     std::uint8_t getc();
     void putc(std::uint8_t c);
 
-    template<typename _T_Output_Iter> std::size_t gets(_T_Output_Iter s, std::size_t n) {
-        std::unique_lock<std::mutex> locker(this->_use_mtx);
-        this->wait_useable(locker);
-
-        auto get_size = std::min(n, this->epos() - this->pos());
-        this->_buffer.copy_to(this->_pos, this->_pos + get_size, s);
-        this->bump(get_size);
-        return get_size;
-    }
-
-    template<typename _T_Input_Iter> std::size_t puts(_T_Input_Iter begin, _T_Input_Iter end) {
-        std::unique_lock<std::mutex> locker(this->_use_mtx);
-        this->wait_useable(locker);
-
-        auto put_size = this->_buffer.insert(begin, end, this->_pos);
-        this->bump(put_size);
-        return put_size;
-    }
-
     // use for in stream
-    template<typename _T_Input_Iter> std::size_t load(_T_Input_Iter begin, _T_Input_Iter end) {
-        std::unique_lock<std::mutex> locker(this->_use_mtx);
+    template<typename _T_Input_Iter> void write(_T_Input_Iter itr, std::size_t n) {
+        std::size_t remain = n;
 
-        std::size_t size;
-        if (this->is_end()) {
-            size = this->_buffer.assign(begin, end);
-            this->_bpos = 0;
-            this->_pos = 0;
-            this->_epos = size;
+        while (remain != 0) {
+            std::size_t write_size = std::min(remain, this->_buffer.size() - this->_epos);
+
+            std::unique_lock<std::mutex> locker(this->_use_mtx);
+            this->wait_writable(locker);
+
+            this->_buffer.insert(itr, itr + write_size, this->_epos);
+            this->_epos += write_size;
+
+            locker.unlock();
+            this->notify_readable();
+
+            remain -= write_size;
         }
-        else {
-            size = this->_buffer.insert(begin, end, this->_epos);
-            this->_epos += size;
+    }
+
+    // use for out stream
+    template<typename _T_Output_Iter> std::size_t read(_T_Output_Iter itr, std::size_t n) {
+        std::size_t remain = n;
+
+        if (remain != 0) {
+            std::size_t read_size = std::min(remain, this->_epos - this->_bpos);
+
+            std::unique_lock<std::mutex> locker(this->_use_mtx);
+            this->wait_readable(locker);
+
+            this->_buffer.copy_to(this->_bpos, this->_bpos + read_size, itr);
+            this->_bpos += read_size;
+
+            std::size_t nth_unit = this->_buffer.unit_index(read_size);
+
+            if (nth_unit != 0) {
+                for (std::size_t i = 0; i < nth_unit; i++) {
+                    this->_buffer.head_move_tail();
+                }
+
+                std::size_t off_size = nth_unit * this->_buffer.unit_size();
+
+                this->_bpos -= off_size;
+                this->_epos -= off_size;
+
+                this->notify_writable();
+            }
+
+            remain -= read_size;
         }
 
-        this->_useable_cond.notify_one();
-        return size;
+        return n - remain;
     }
 };
 

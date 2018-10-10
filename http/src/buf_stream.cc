@@ -3,7 +3,6 @@
 rwg_http::buf_stream::buf_stream(rwg_http::buffer& buffer)
     : _buffer(buffer)
     , _bpos(0)
-    , _pos(0)
     , _epos(0) {
 
     this->_buffer.fill(0, this->_epos, 0x00);
@@ -13,56 +12,79 @@ std::size_t rwg_http::buf_stream::bpos() const {
     return this->_bpos;
 }
 
-std::size_t rwg_http::buf_stream::pos() const {
-    return this->_pos;
-}
-
 std::size_t rwg_http::buf_stream::epos() const {
     return this->_epos;
 }
 
-bool rwg_http::buf_stream::is_end() const {
-    return this->_pos == this->_epos;
-}
-
 void rwg_http::buf_stream::clear() {
     std::unique_lock<std::mutex> locker(this->_use_mtx);
-    this->wait_unuseable(locker);
 
     this->_bpos = 0;
-    this->_pos = 0;
-    this->_epos = this->_buffer.size();
-    this->_useable_cond.notify_one();
+    this->_epos = 0;
 }
 
 std::uint8_t rwg_http::buf_stream::getc() {
     std::unique_lock<std::mutex> locker(this->_use_mtx);
-    this->wait_useable(locker);
 
-    std::uint8_t c = this->_buffer[this->_pos];
-    this->bump(1);
+    this->wait_readable(locker);
+
+    std::uint8_t c = this->_buffer[this->_bpos];
+    this->_bpos++;
+
+    if (this->_buffer.unit_index(this->_bpos) != 0) {
+        this->_buffer.head_move_tail();
+
+        this->_bpos -= this->_buffer.unit_size();
+        this->_epos -= this->_buffer.unit_size();
+        
+        locker.unlock();
+        this->notify_writable();
+    }
+
     return c;
 }
 
-void rwg_http::buf_stream::bump(std::size_t size) {
-    this->_pos = std::min(this->_pos + size, this->_epos);
-    this->_unuseable_cond.notify_one();
+void rwg_http::buf_stream::wait_readable(std::unique_lock<std::mutex>& locker) {
+    this->_readable_cond.wait(locker, [this] () -> bool { return this->_bpos != this->_epos; });
 }
 
-void rwg_http::buf_stream::wait_useable(std::unique_lock<std::mutex>& locker) {
-    this->_useable_cond.wait(locker, [this] () -> bool { return !this->is_end(); });
+void rwg_http::buf_stream::wait_writable(std::unique_lock<std::mutex>& locker) {
+    this->_writable_cond.wait(locker, [this] () -> bool { return this->_epos != this->_buffer.size(); });
 }
 
-void rwg_http::buf_stream::wait_unuseable(std::unique_lock<std::mutex>& locker) {
-    this->_unuseable_cond.wait(locker, [this] () -> bool { return this->is_end(); });
+void rwg_http::buf_stream::notify_readable() {
+    this->_readable_cond.notify_one();
 
+    if (this->_readable_event) {
+        this->_readable_event();
+    }
+}
+
+void rwg_http::buf_stream::notify_writable() {
+    this->_writable_cond.notify_one();
+
+    if (this->_writable_event) {
+        this->_writable_event();
+    }
+}
+
+void rwg_http::buf_stream::set_readable_event(std::function<void ()> func) {
+    this->_readable_event = func;
+}
+
+void rwg_http::buf_stream::set_writable_event(std::function<void ()> func) {
+    this->_writable_event = func;
 }
 
 void rwg_http::buf_stream::putc(std::uint8_t c) {
     std::unique_lock<std::mutex> locker(this->_use_mtx);
-    this->wait_useable(locker);
+    this->wait_writable(locker);
 
-    this->_buffer[this->_pos] = c;
-    this->bump(1);
+
+    this->_buffer[this->_epos] = c;
+    this->_epos++;
+
+    locker.unlock();
+    this->notify_readable();
 }
 
