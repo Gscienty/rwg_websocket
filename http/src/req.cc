@@ -86,7 +86,7 @@ void rwg_http::req::get_header() {
 
 void rwg_http::req::sync() {
     std::size_t size = ::read(this->_fd, this->_cache.unit(0), this->_cache.size());
-    this->_str.load(this->_cache.unit(0), this->_cache.unit(0) + size);
+    this->_str.write(this->_cache.unit(0), size);
 }
 
 std::string& rwg_http::req::version() {
