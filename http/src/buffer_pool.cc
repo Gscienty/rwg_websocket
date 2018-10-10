@@ -120,3 +120,11 @@ void rwg_http::buffer::fill(const std::size_t begin_pos, const std::size_t end_p
         this->_units[pos / this->_unit_size].second[pos % this->_unit_size] = val;
     }
 }
+
+std::uint8_t* rwg_http::buffer::unit(std::size_t n) const {
+    if (n >= this->_units.size()) {
+        throw std::out_of_range("rwg_http::buffer::unit: out of range");
+    }
+
+    return this->_units[n].second;
+}

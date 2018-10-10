@@ -31,15 +31,19 @@ public:
     void recover();
     void fill(const std::size_t begin_pos, const std::size_t end_pos, const std::uint8_t val);
 
-    template<typename _T_Iter> void assign(_T_Iter begin, _T_Iter end) {
+    std::uint8_t* unit(std::size_t n) const;
+
+    template<typename _T_Iter> std::size_t assign(_T_Iter begin, _T_Iter end) {
         std::size_t pos = 0;
         for (auto itr = begin; itr != end; itr++) {
             if (pos >= this->_size) {
-                return;
+                return pos;
             }
             this->_units[pos / this->_unit_size].second[pos % this->_unit_size] = *itr;
             pos++;
         }
+
+        return pos;
     }
 
     template<typename _T_Input_Iter> std::size_t insert(_T_Input_Iter begin, _T_Input_Iter end, const std::size_t pos) {
