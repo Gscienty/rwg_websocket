@@ -1,11 +1,10 @@
 #include "req.h"
 #include <unistd.h>
 
-rwg_http::req::req(int fd, rwg_http::buffer& buffer, rwg_http::buffer&& cache)
+rwg_http::req::req(int fd, rwg_http::buffer&& buffer, rwg_http::buffer&& cache)
     : _fd(fd)
-    , _str(buffer)
-    , _cache(cache) {
-
+    , _str(std::move(buffer))
+    , _cache(std::move(cache)) {
 }
 
 static const std::uint8_t __crlf[] = { '\r', '\n', '\r', '\n' };

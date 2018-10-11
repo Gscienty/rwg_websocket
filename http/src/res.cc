@@ -1,11 +1,10 @@
 #include "res.h"
 #include <unistd.h>
-#include <iostream>
 
-rwg_http::res::res(int fd, rwg_http::buffer& buffer, rwg_http::buffer&& cache)
+rwg_http::res::res(int fd, rwg_http::buffer&& buffer, rwg_http::buffer&& cache)
     : _fd(fd)
-    , _cache(cache)
-    , _str(buffer)
+    , _cache(std::move(cache))
+    , _str(std::move(buffer))
     , _version("HTTP/1.1")
     , _status_code(200)
     , _description("OK") {
@@ -33,6 +32,7 @@ static const std::string __crlf("\r\n");
 static const std::string __header_param_delimiter(": ");
 
 void rwg_http::res::flush_header() {
+    // lazy method
     this->_str.write(this->_version.begin(), this->_version.size());
     this->_str.putc(' ');
     std::string status_code = std::to_string(this->_status_code);

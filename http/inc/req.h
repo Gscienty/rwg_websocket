@@ -21,7 +21,7 @@ private:
     void get_general_header();
     void get_request_header();
 public:
-    req(int fd, rwg_http::buffer& buffer, rwg_http::buffer&& cache);
+    req(int fd, rwg_http::buffer&& buffer, rwg_http::buffer&& cache);
 
     std::string& version();
     std::string& method();

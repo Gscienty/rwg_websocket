@@ -27,7 +27,7 @@ private:
 
     void sync();
 public:
-    res(int fd, rwg_http::buffer& buffer, rwg_http::buffer&& cache);
+    res(int fd, rwg_http::buffer&& buffer, rwg_http::buffer&& cache);
 
     std::string& version();
     std::uint16_t& status_code();
