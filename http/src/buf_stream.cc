@@ -1,7 +1,7 @@
 #include "buf_stream.h"
 
-rwg_http::buf_stream::buf_stream(rwg_http::buffer& buffer)
-    : _buffer(buffer)
+rwg_http::buf_stream::buf_stream(rwg_http::buffer&& buffer)
+    : _buffer(std::move(buffer))
     , _bpos(0)
     , _epos(0) {
 

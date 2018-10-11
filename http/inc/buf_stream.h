@@ -8,13 +8,11 @@
 #include <condition_variable>
 #include <functional>
 
-#include <iostream>
-
 namespace rwg_http {
 
 class buf_stream {
 private:
-    rwg_http::buffer& _buffer;
+    rwg_http::buffer _buffer;
     std::size_t _bpos;
     std::size_t _epos;
 
@@ -31,7 +29,7 @@ private:
     void notify_readable();
     void notify_writable();
 public:
-    buf_stream(rwg_http::buffer& buffer);
+    buf_stream(rwg_http::buffer&& buffer);
 
     std::size_t bpos() const;
     std::size_t epos() const;
@@ -45,9 +43,10 @@ public:
     void putc(std::uint8_t c);
 
     // use for in stream
-    template<typename _T_Input_Iter> void write(_T_Input_Iter itr, std::size_t n) {
+    template<typename _T_Input_Iter> void write(_T_Input_Iter s_itr, std::size_t n) {
         std::size_t remain = n;
 
+        _T_Input_Iter itr = s_itr;
         while (remain != 0) {
             std::size_t write_size = std::min(remain, this->_buffer.size() - this->_epos);
 
@@ -61,6 +60,7 @@ public:
             this->notify_readable();
 
             remain -= write_size;
+            itr += write_size;
         }
     }
 
@@ -77,7 +77,7 @@ public:
             this->_buffer.copy_to(this->_bpos, this->_bpos + read_size, itr);
             this->_bpos += read_size;
 
-            std::size_t nth_unit = this->_buffer.unit_index(read_size);
+            std::size_t nth_unit = this->_buffer.unit_index(this->_bpos);
 
             if (nth_unit != 0) {
                 for (std::size_t i = 0; i < nth_unit; i++) {
