@@ -14,16 +14,19 @@ class buffer_pool;
 
 class buffer {
 private:
-    const std::size_t _unit_size;
-    const std::size_t _size;
+    std::size_t _unit_size;
+    std::size_t _size;
     std::size_t _unit_off;
     std::function<void (std::function<void (std::function<void (std::size_t pos)>)> func)> _recover;
     std::vector<std::pair<std::size_t, std::uint8_t*>> _units;
+
+    bool _moved;
 public:
     buffer(std::function<void (std::function<void (std::function<void (std::size_t pos)>)> func)> recover,
            std::size_t unit_size,
            std::size_t size,
-           std::vector<std::pair<std::size_t, std::uint8_t*>> units);
+           std::vector<std::pair<std::size_t, std::uint8_t*>>&& units);
+    buffer(rwg_http::buffer&& bf);
     virtual ~buffer();
 
     std::uint8_t& operator[] (const std::size_t pos);
@@ -37,6 +40,8 @@ public:
     std::size_t unit_index(const std::size_t pos) const;
 
     void head_move_tail();
+
+    rwg_http::buffer split(const std::size_t size);
 
     template<typename _T_Iter> std::size_t assign(_T_Iter begin, _T_Iter end) {
         std::size_t pos = 0;
@@ -100,7 +105,7 @@ public:
 
     std::size_t unit_size() const;
     std::size_t unit_count() const;
-    rwg_http::buffer alloc(size_t demand_size);
+    rwg_http::buffer alloc(std::size_t demand_size);
     const rwg_http::bitmap& map();
 };
 

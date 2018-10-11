@@ -50,7 +50,7 @@ rwg_http::buffer rwg_http::buffer_pool::alloc(std::size_t demand_size) {
     return rwg_http::buffer(std::bind(&rwg_http::buffer_pool::__recover, this, std::placeholders::_1),
                             this->_unit_size,
                             demand_size,
-                            units);
+                            std::move(units));
 }
 
 void rwg_http::buffer_pool::__recover(std::function<void (std::function<void (std::size_t pos)>)> func) {
@@ -69,15 +69,29 @@ const rwg_http::bitmap& rwg_http::buffer_pool::map() {
 rwg_http::buffer::buffer(std::function<void (std::function<void (std::function<void (std::size_t pos)>)> func)> recover,
                          std::size_t unit_size,
                          std::size_t size,
-                         std::vector<std::pair<std::size_t, std::uint8_t*>> units)
+                         std::vector<std::pair<std::size_t, std::uint8_t*>>&& units)
     : _unit_size(unit_size)
     , _size(size)
     , _unit_off(0)
     , _recover(recover)
-    , _units(units) {}
+    , _units(units)
+    , _moved(false) {}
+
+rwg_http::buffer::buffer(rwg_http::buffer&& buf)
+    : _unit_size(buf._unit_size)
+    , _size(buf._size)
+    , _unit_off(buf._unit_off)
+    , _recover(buf._recover)
+    , _units(buf._units)
+    , _moved(false) {
+
+    buf._moved = true;
+}
 
 rwg_http::buffer::~buffer() {
-    this->recover();
+    if (this->_moved == false) {
+        this->recover();
+    }
 }
 
 void rwg_http::buffer::recover() {
@@ -88,7 +102,6 @@ void rwg_http::buffer::recover() {
     };
 
     this->_recover(release_units);
-
     this->_units.clear();
 }
 
@@ -143,3 +156,20 @@ void rwg_http::buffer::head_move_tail() {
 std::size_t rwg_http::buffer::unit_index(const std::size_t pos) const {
     return pos / this->_unit_size;
 };
+
+rwg_http::buffer rwg_http::buffer::split(const std::size_t size) {
+    std::size_t splited_unit_count = size / this->_unit_size + (size % this->_unit_size == 0 ? 0 : 1);
+    if (splited_unit_count > this->_units.size()) {
+        throw std::bad_alloc();
+    }
+
+    rwg_http::buffer splited_buffer(this->_recover,
+                                    this->_unit_size,
+                                    size,
+                                    std::vector<std::pair<std::size_t, std::uint8_t*>>(this->_units.begin(), this->_units.begin() + splited_unit_count));
+    this->_units.erase(this->_units.begin(), this->_units.begin() + splited_unit_count);
+
+    this->_size = std::max(static_cast<std::size_t>(0), this->_size - splited_unit_count * this->_unit_size);
+
+    return splited_buffer;
+}
