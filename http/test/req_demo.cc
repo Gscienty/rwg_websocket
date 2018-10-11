@@ -1,4 +1,4 @@
-#include "req.h"
+#include "session.h"
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -8,7 +8,7 @@
 #include <iostream>
 
 int main() {
-    rwg_http::buffer_pool pool(128, 8);
+    rwg_http::buffer_pool pool(16, 8);
     int epfd = ::epoll_create(1);
 
     int sfd = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -25,37 +25,39 @@ int main() {
 
     int cfd = ::accept(sfd, reinterpret_cast<sockaddr*>(&caddr), &caddr_len);
 
-    rwg_http::buffer cbuffer = pool.alloc(pool.unit_size());
-    rwg_http::buffer cache = pool.alloc(pool.unit_size());
+    rwg_http::session sess(cfd, pool);
 
-    rwg_http::req req(cfd, cbuffer, std::move(cache));
+    std::cout << "ACCEPTED\n";
 
     auto thr_func = [&] () -> void {
         ::epoll_event event;
         event.events = EPOLLIN;
         event.data.fd = cfd;
-        event.data.ptr = reinterpret_cast<void*>(&req);
+        event.data.ptr = reinterpret_cast<void*>(&sess);
 
         ::epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &event);
         while (true) {
             ::epoll_event eve;
             ::epoll_wait(epfd, &eve, 10, -1);
 
-            reinterpret_cast<rwg_http::req*>(eve.data.ptr)->sync();
+            reinterpret_cast<rwg_http::session*>(eve.data.ptr)->req().sync();
         }
     };
 
     std::thread thr(thr_func);
     thr.detach();
 
-    req.get_header();
+    sess.req().get_header();
 
-    std::cout << req.method() << ' ' << req.uri() << ' ' << req.version() << std::endl;
+    std::cout << sess.req().method() << ' ' << sess.req().uri() << ' ' << sess.req().version() << std::endl;
 
-    for (auto kv : req.header_parameters()) {
+    for (auto kv : sess.req().header_parameters()) {
         std::cout << kv.first << ' ' << kv.second << std::endl;
     }
 
+    sess.res().header_parameters().insert(std::make_pair("Content-Type", "text/plain"));
+
+    sess.res().flush_header();
 
     ::close(cfd);
     ::close(sfd);
