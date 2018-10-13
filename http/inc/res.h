@@ -26,7 +26,7 @@ private:
 
     void __sync(std::uint8_t* s, std::size_t n);
 public:
-    res(int fd, rwg_http::buffer&& buffer);
+    res(int fd, rwg_http::buffer&& buffer, std::function<void (rwg_http::buf_outstream&)> notify_func);
 
     std::string& version();
     std::uint16_t& status_code();
@@ -35,7 +35,6 @@ public:
 
     void write_header();
 
-    void sync();
     void end();
 };
 

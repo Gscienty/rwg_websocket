@@ -4,14 +4,15 @@
 #include <errno.h>
 #include <string.h>
 
-rwg_http::res::res(int fd, rwg_http::buffer&& buffer)
+rwg_http::res::res(int fd, rwg_http::buffer&& buffer, std::function<void (rwg_http::buf_outstream&)> notify_func)
     : _fd(fd)
     , _str(std::move(buffer),
            16,
            std::bind(&rwg_http::res::__sync,
                      this,
                      std::placeholders::_1,
-                     std::placeholders::_2))
+                     std::placeholders::_2),
+           notify_func)
     , _version("HTTP/1.1")
     , _status_code(200)
     , _description("OK") {
@@ -57,10 +58,6 @@ void rwg_http::res::write_header() {
 
 void rwg_http::res::__sync(std::uint8_t* s, std::size_t n) {
     ::write(this->_fd, s, n);
-}
-
-void rwg_http::res::sync() {
-    this->_str.sync();
 }
 
 void rwg_http::res::end() {
