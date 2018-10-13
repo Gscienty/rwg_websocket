@@ -1,10 +1,17 @@
 #include "req.h"
 #include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <iostream>
 
-rwg_http::req::req(int fd, rwg_http::buffer&& buffer, rwg_http::buffer&& cache)
+rwg_http::req::req(int fd, rwg_http::buffer&& buffer)
     : _fd(fd)
-    , _str(std::move(buffer))
-    , _cache(std::move(cache)) {
+    , _str(std::move(buffer),
+           16,
+           std::bind(&rwg_http::req::__sync,
+                     this,
+                     std::placeholders::_1,
+                     std::placeholders::_2)) {
 }
 
 static const std::uint8_t __crlf[] = { '\r', '\n', '\r', '\n' };
@@ -83,9 +90,12 @@ void rwg_http::req::get_header() {
     this->get_request_header();
 }
 
-void rwg_http::req::sync() {
-    std::size_t size = ::read(this->_fd, this->_cache.unit(0), this->_cache.size());
-    this->_str.write(this->_cache.unit(0), size);
+std::size_t rwg_http::req::__sync(std::uint8_t* s, std::size_t n) {
+    ::ssize_t size = ::read(this->_fd, s, n);
+    if (size == -1) {
+        return 0;
+    }
+    return size;
 }
 
 std::string& rwg_http::req::version() {
@@ -102,4 +112,8 @@ std::string& rwg_http::req::uri() {
 
 std::map<std::string, std::string>& rwg_http::req::header_parameters() {
     return this->_header_parameters;
+}
+
+void rwg_http::req::sync() {
+    this->_str.sync();
 }

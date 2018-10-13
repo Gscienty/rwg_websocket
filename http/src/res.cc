@@ -1,15 +1,20 @@
 #include "res.h"
 #include <unistd.h>
+#include <iostream>
+#include <errno.h>
+#include <string.h>
 
-rwg_http::res::res(int fd, rwg_http::buffer&& buffer, rwg_http::buffer&& cache)
+rwg_http::res::res(int fd, rwg_http::buffer&& buffer)
     : _fd(fd)
-    , _cache(std::move(cache))
-    , _str(std::move(buffer))
+    , _str(std::move(buffer),
+           16,
+           std::bind(&rwg_http::res::__sync,
+                     this,
+                     std::placeholders::_1,
+                     std::placeholders::_2))
     , _version("HTTP/1.1")
     , _status_code(200)
     , _description("OK") {
-
-    this->_str.set_readable_event(std::bind(&rwg_http::res::sync, this));
 }
 
 std::string& rwg_http::res::version() {
@@ -31,7 +36,7 @@ std::map<std::string, std::string>& rwg_http::res::header_parameters() {
 static const std::string __crlf("\r\n");
 static const std::string __header_param_delimiter(": ");
 
-void rwg_http::res::flush_header() {
+void rwg_http::res::write_header() {
     // lazy method
     this->_str.write(this->_version.begin(), this->_version.size());
     this->_str.putc(' ');
@@ -50,8 +55,15 @@ void rwg_http::res::flush_header() {
     this->_str.write(__crlf.begin(), __crlf.size());
 }
 
+void rwg_http::res::__sync(std::uint8_t* s, std::size_t n) {
+    ::write(this->_fd, s, n);
+}
+
 void rwg_http::res::sync() {
-    std::size_t n = this->_str.read(this->_cache.unit(0), this->_cache.size());
-    ::write(this->_fd, this->_cache.unit(0), n);
+    this->_str.sync();
+}
+
+void rwg_http::res::end() {
+    this->_str.flush();
 }
 
