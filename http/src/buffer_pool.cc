@@ -2,174 +2,102 @@
 #include <stdexcept>
 #include <algorithm>
 
-rwg_http::buffer_pool::buffer_pool(std::size_t unit_size, std::size_t unit_count)
-    : _pool(new std::uint8_t[unit_size * unit_count])
-    , _unit_size(unit_size)
-    , _unit_count(unit_count)
-    , _map(unit_count) {}
-
-std::size_t rwg_http::buffer_pool::unit_count() const {
-    return this->_unit_count;
+rwg_http::buffer_pool::buffer_pool(std::size_t pool_size)
+    : _pool(new std::uint8_t[pool_size]) {
+    
+    this->_usable.push_back(std::make_pair(0, pool_size));
 }
 
-std::size_t rwg_http::buffer_pool::unit_size() const {
-    return this->_unit_size;
+std::size_t rwg_http::buffer_pool::__calc_min_demand(std::size_t size) const {
+    std::size_t ret = 1;
+    while (ret < size) {
+        ret <<= 1;
+    }
+    return ret;
 }
 
 rwg_http::buffer rwg_http::buffer_pool::alloc(std::size_t demand_size) {
-    std::size_t unit_count = demand_size / this->_unit_size + 
-        (demand_size % this->_unit_size == 0 ? 0 : 1);
-
+    std::size_t size = this->__calc_min_demand(demand_size);
     std::lock_guard<std::mutex> locker(this->_pool_mtx);
 
-    std::size_t avail_unit_count = 0;
-    for (std::size_t i = 0; i < this->_unit_count; i++) {
-        if (this->_map[i] == false) {
-            avail_unit_count++;
-            if (avail_unit_count == unit_count) {
-                break;
+    for (auto usable_itr = this->_usable.begin(); usable_itr != this->_usable.end(); usable_itr++) {
+        std::size_t block_size = usable_itr->second - usable_itr->first;
+        if (block_size >= size) {
+            while (block_size != size) {
+                block_size >>= 1;
+                std::size_t cut_pos = usable_itr->first + block_size;
+                this->_usable.insert(usable_itr, std::make_pair(usable_itr->first, cut_pos));
+                usable_itr->first = cut_pos;
+                usable_itr--;
+            }
+
+            auto block = *usable_itr;
+            this->_usable.erase(usable_itr);
+            auto use_itr = this->__use(block);
+
+            return rwg_http::buffer(std::bind(&rwg_http::buffer_pool::__recover,
+                                              this,
+                                              std::placeholders::_1),
+                                    demand_size,
+                                    &this->_pool.get()[block.first],
+                                    use_itr);
+        }
+    }
+
+    throw std::bad_alloc();
+}
+
+std::list<std::pair<std::size_t, std::size_t>>::iterator
+rwg_http::buffer_pool::__use(std::pair<std::size_t, std::size_t> block) {
+    auto itr = this->_unusable.begin();
+    if (itr == this->_unusable.end() || block.second <= itr->first) {
+        this->_unusable.push_front(block);
+        return this->_unusable.begin();
+    }
+
+    while (itr != this->_unusable.end() && block.first >= itr->second) { itr++; }
+    return this->_unusable.insert(itr, block);
+}
+
+void rwg_http::buffer_pool::__recover(std::list<std::pair<std::size_t, std::size_t>>::iterator using_block) {
+    auto block = *using_block;
+    std::lock_guard<std::mutex> locker(this->_pool_mtx);
+    this->_unusable.erase(using_block);
+
+    auto rc_itr = this->_usable.end();
+    auto itr = this->_usable.begin();
+    if (itr == this->_usable.end() || block.second <= itr->first) {
+        this->_usable.push_front(block);
+        rc_itr = this->_usable.begin();
+    }
+    else {
+        while (itr != this->_usable.end() && block.first >= itr->second) { itr++; }
+        rc_itr = this->_usable.insert(itr, block);
+    }
+
+    bool combined = true;
+
+    while (combined) {
+        combined = false;
+        auto after = rc_itr;
+        after++;
+        if (after != this->_usable.end() && after->second - after->first == rc_itr->second - rc_itr->first) {
+            rc_itr->second = after->second;
+            this->_usable.erase(after);
+            combined = true;
+            continue;
+        }
+
+        if (rc_itr != this->_usable.begin()) {
+            auto before = rc_itr;
+            before--;
+            if (before->second - before->first == rc_itr->second - rc_itr->first) {
+                rc_itr->first = before->first;
+                this->_usable.erase(before);
+                combined = true;
             }
         }
     }
-
-    if (avail_unit_count != unit_count) {
-        throw std::bad_alloc();
-    }
-
-    std::vector<std::pair<std::size_t, std::uint8_t*>> units;
-    for (std::size_t i = 0; i < this->_unit_count; i++) {
-        if (this->_map[i] == false) {
-            this->_map[i] = true;
-            units.push_back(std::make_pair(i, &this->_pool[i * this->_unit_size]));
-            if (--avail_unit_count == 0) {
-                break;
-            }
-        }
-    }
-
-    return rwg_http::buffer(std::bind(&rwg_http::buffer_pool::__recover, this, std::placeholders::_1),
-                            this->_unit_size,
-                            demand_size,
-                            std::move(units));
 }
 
-void rwg_http::buffer_pool::__recover(std::function<void (std::function<void (std::size_t pos)>)> func) {
-    std::lock_guard<std::mutex> locker(this->_pool_mtx);
-    auto release_unit_func = [this] (std::size_t pos) -> void {
-        this->_map[pos] = false;
-    };
 
-    func(release_unit_func);
-}
-
-const rwg_http::bitmap& rwg_http::buffer_pool::map() {
-    return this->_map;
-}
-
-rwg_http::buffer::buffer(std::function<void (std::function<void (std::function<void (std::size_t pos)>)> func)> recover,
-                         std::size_t unit_size,
-                         std::size_t size,
-                         std::vector<std::pair<std::size_t, std::uint8_t*>>&& units)
-    : _unit_size(unit_size)
-    , _size(size)
-    , _unit_off(0)
-    , _recover(recover)
-    , _units(units)
-    , _moved(false) {}
-
-rwg_http::buffer::buffer(rwg_http::buffer&& buf)
-    : _unit_size(buf._unit_size)
-    , _size(buf._size)
-    , _unit_off(buf._unit_off)
-    , _recover(buf._recover)
-    , _units(buf._units)
-    , _moved(false) {
-
-    buf._moved = true;
-}
-
-rwg_http::buffer::~buffer() {
-    if (this->_moved == false) {
-        this->recover();
-    }
-}
-
-void rwg_http::buffer::recover() {
-    auto release_units = [this] (std::function<void (std::size_t pos)> func) -> void {
-        for (auto kv : this->_units) {
-            func(kv.first);
-        }
-    };
-
-    this->_recover(release_units);
-    this->_units.clear();
-}
-
-std::uint8_t& rwg_http::buffer::operator[] (const std::size_t pos) {
-    if (pos >= this->_size) {
-        throw std::out_of_range("rwg_http::buffer::operator[]: out of range");
-    }
-
-    return this->_units[(this->_unit_off + pos / this->_unit_size) % this->_units.size()]
-        .second[pos % this->_unit_size];
-}
-
-std::size_t rwg_http::buffer::size() const {
-    return this->_size;
-}
-
-std::size_t rwg_http::buffer::avail_size() const {
-    return this->_units.size() * this->_unit_size;
-}
-
-std::size_t rwg_http::buffer::unit_size() const {
-    return this->_unit_size;
-}
-
-void rwg_http::buffer::fill(const std::size_t begin_pos, const std::size_t end_pos, const std::uint8_t val) {
-    if (begin_pos >= end_pos) {
-        return;
-    }
-
-    if (begin_pos >= this->_size || end_pos > this->_size) {
-        throw std::out_of_range("rwg_http::buffer::operator[]: out of range");
-    }
-
-    for (auto pos = begin_pos; pos < end_pos; pos++) {
-        this->_units[(this->_unit_off + pos / this->_unit_size) % this->_units.size()]
-            .second[pos % this->_unit_size] = val;
-    }
-}
-
-std::uint8_t* rwg_http::buffer::unit(const std::size_t n) const {
-    if (n >= this->_units.size()) {
-        throw std::out_of_range("rwg_http::buffer::unit: out of range");
-    }
-
-    return this->_units[n].second;
-}
-
-void rwg_http::buffer::head_move_tail() {
-    this->_unit_off = (this->_unit_off + 1) % this->_units.size();
-}
-
-std::size_t rwg_http::buffer::unit_index(const std::size_t pos) const {
-    return pos / this->_unit_size;
-};
-
-rwg_http::buffer rwg_http::buffer::split(const std::size_t size) {
-    std::size_t splited_unit_count = size / this->_unit_size + (size % this->_unit_size == 0 ? 0 : 1);
-    if (splited_unit_count > this->_units.size()) {
-        throw std::bad_alloc();
-    }
-
-    rwg_http::buffer splited_buffer(this->_recover,
-                                    this->_unit_size,
-                                    size,
-                                    std::vector<std::pair<std::size_t, std::uint8_t*>>(this->_units.begin(), this->_units.begin() + splited_unit_count));
-    this->_units.erase(this->_units.begin(), this->_units.begin() + splited_unit_count);
-
-    this->_size = std::max(static_cast<std::size_t>(0), this->_size - splited_unit_count * this->_unit_size);
-
-    return splited_buffer;
-}
