@@ -76,14 +76,17 @@ private:
     std::condition_variable _ready_cond;
 
     std::function<void (std::uint8_t* s, std::size_t n)> _sync;
+    std::function<void (rwg_http::buf_outstream&)> _notify;
 
     void __flush();
 public:
     buf_outstream(rwg_http::buffer&& buffer,
                   std::size_t unit_size,
-                  std::function<void (std::uint8_t* s, std::size_t n)> sync_func);
+                  std::function<void (std::uint8_t* s, std::size_t n)> sync_func,
+                  std::function<void (rwg_http::buf_outstream&)> notify_func);
 
     void sync();
+    void nonblock_sync();
     void flush();
 
     void putc(std::uint8_t c);

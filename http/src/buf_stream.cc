@@ -60,12 +60,14 @@ std::uint8_t rwg_http::buf_instream::getc() {
 
 rwg_http::buf_outstream::buf_outstream(rwg_http::buffer&& buffer,
                                        std::size_t unit_size,
-                                       std::function<void (std::uint8_t*, std::size_t n)> sync_func)
+                                       std::function<void (std::uint8_t*, std::size_t n)> sync_func,
+                                       std::function<void (rwg_http::buf_outstream&)> notify_func)
     : _buffer(std::move(buffer))
     , _unit_size(unit_size)
     , _using_unit(nullptr)
     , _using_unit_size(0)
-    , _sync(sync_func) {
+    , _sync(sync_func)
+    , _notify(notify_func) {
     
     int unit_count = this->_buffer.size() / unit_size;
     for (auto i = 0; i < unit_count; i++) {
@@ -77,7 +79,9 @@ void rwg_http::buf_outstream::__flush() {
     std::unique_lock<std::mutex> lck(this->_mtx);
     this->_free_cond.wait(lck, [this] () -> bool { return !this->_free.empty(); });
 
+    bool need_notify_sync = false;
     if (this->_using_unit != nullptr) {
+        need_notify_sync = true;
         this->_ready.push(std::make_pair(this->_using_unit, this->_using_unit_size));
     }
     this->_using_unit = this->_free.front();
@@ -86,6 +90,10 @@ void rwg_http::buf_outstream::__flush() {
 
     lck.unlock();
     this->_ready_cond.notify_one();
+
+    if (need_notify_sync) {
+        this->_notify(*this);
+    }
 }
 
 void rwg_http::buf_outstream::flush() {
@@ -115,6 +123,22 @@ void rwg_http::buf_outstream::sync() {
     std::unique_lock<std::mutex> lck(this->_mtx);
     this->_ready_cond.wait(lck, [this] () -> bool { return !this->_ready.empty(); });
     
+    auto unit = this->_ready.front();
+    this->_ready.pop();
+
+    this->_sync(unit.first, unit.second);
+    this->_free.push(unit.first);
+
+    lck.unlock();
+    this->_free_cond.notify_one();
+}
+
+void rwg_http::buf_outstream::nonblock_sync() {
+    std::unique_lock<std::mutex> lck(this->_mtx);
+    if (this->_ready.empty()) {
+        return;
+    }
+
     auto unit = this->_ready.front();
     this->_ready.pop();
 
