@@ -8,7 +8,7 @@
 #include <iostream>
 
 int main() {
-    rwg_http::buffer_pool pool(16, 8);
+    rwg_http::buffer_pool pool(128);
     int epfd = ::epoll_create(1);
 
     int sfd = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -23,12 +23,15 @@ int main() {
     ::sockaddr_in caddr;
     ::socklen_t caddr_len;
 
+    std::cout << "START\n";
+
     int cfd = ::accept(sfd, reinterpret_cast<sockaddr*>(&caddr), &caddr_len);
 
     rwg_http::session sess(cfd, pool);
 
-    std::cout << "ACCEPTED\n";
+    std::cout << "ACCEPTED" << ' ' << cfd << std::endl;
 
+    bool shutdown = false;
     auto thr_func = [&] () -> void {
         ::epoll_event event;
         event.events = EPOLLIN;
@@ -36,7 +39,7 @@ int main() {
         event.data.ptr = reinterpret_cast<void*>(&sess);
 
         ::epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &event);
-        while (true) {
+        while (shutdown == false) {
             ::epoll_event eve;
             ::epoll_wait(epfd, &eve, 10, -1);
 
@@ -46,6 +49,15 @@ int main() {
 
     std::thread thr(thr_func);
     thr.detach();
+
+    auto thr_func2 = [&] () -> void {
+        while (true) {
+            sess.res().sync();
+        }
+    };
+
+    std::thread thr2(thr_func2);
+    thr2.detach();
 
     sess.req().get_header();
 
@@ -57,7 +69,8 @@ int main() {
 
     sess.res().header_parameters().insert(std::make_pair("Content-Type", "text/plain"));
 
-    sess.res().flush_header();
+    sess.res().write_header();
+    sess.res().end();
 
     ::close(cfd);
     ::close(sfd);

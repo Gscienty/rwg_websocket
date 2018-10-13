@@ -1,63 +1,84 @@
 #include "buffer_pool.h"
 #include "gtest/gtest.h"
 
-TEST(buffer_pool, ctor) {
-    rwg_http::buffer_pool pool(128, 8);
-    
-    EXPECT_EQ(128, pool.unit_size());
-    EXPECT_EQ(8, pool.unit_count());
-}
-
 TEST(buffer_pool, alloc) {
-    rwg_http::buffer_pool pool(128, 8);
+    rwg_http::buffer_pool pool(128);
 
-    auto buffer = pool.alloc(129);
+    auto buffer = pool.alloc(64);
 
-    EXPECT_EQ(129, buffer.size());
-    EXPECT_EQ(128 * 2, buffer.avail_size());
-
-    EXPECT_TRUE(pool.map().ensure(0, 2, true));
-    EXPECT_TRUE(pool.map().ensure(2, 8, false));
+    EXPECT_EQ(64, buffer.size());
+    EXPECT_EQ(1, pool.usable().size());
 }
 
 TEST(buffer_pool, alloc_and_recover) {
-    rwg_http::buffer_pool pool(128, 8);
+    rwg_http::buffer_pool pool(128);
     {
-        auto buffer = pool.alloc(129);
-        EXPECT_TRUE(pool.map().ensure(0, 2, true));
-        EXPECT_TRUE(pool.map().ensure(2, 8, false));
+        auto buffer = pool.alloc(65);
+        EXPECT_EQ(65, buffer.size());
+        EXPECT_TRUE(pool.usable().empty());
     }
-
-    EXPECT_TRUE(pool.map().ensure(0, 8, false));
+    EXPECT_FALSE(pool.usable().empty());
 }
 
 TEST(buffer_pool, alloc_and_recover_2) {
-    rwg_http::buffer_pool pool(128, 8);
-    auto buffer1 = pool.alloc(129);
-    EXPECT_TRUE(pool.map().ensure(0, 2, true));
-    EXPECT_TRUE(pool.map().ensure(2, 8, false));
-    auto buffer2 = pool.alloc(129);
-    EXPECT_TRUE(pool.map().ensure(0, 4, true));
-    EXPECT_TRUE(pool.map().ensure(4, 8, false));
-    auto buffer3 = pool.alloc(129);
-    EXPECT_TRUE(pool.map().ensure(0, 6, true));
-    EXPECT_TRUE(pool.map().ensure(6, 8, false));
+    rwg_http::buffer_pool pool(128);
+
+    auto buffer1 = pool.alloc(2);
+    auto buffer2 = pool.alloc(4);
+    auto buffer3 = pool.alloc(8);
+
+    EXPECT_EQ(3, pool.unusable().size());
+
+    buffer1.recover();
+    EXPECT_EQ(0, pool.usable().front().first);
+    EXPECT_EQ(4, pool.usable().front().second);
 
     buffer2.recover();
-    EXPECT_TRUE(pool.map().ensure(0, 2, true));
-    EXPECT_TRUE(pool.map().ensure(2, 4, false));
-    EXPECT_TRUE(pool.map().ensure(4, 6, true));
-    EXPECT_TRUE(pool.map().ensure(6, 8, false));
+    EXPECT_EQ(0, pool.usable().front().first);
+    EXPECT_EQ(8, pool.usable().front().second);
 
-    auto buffer4 = pool.alloc(128 * 3);
-    EXPECT_TRUE(pool.map().ensure(0, 7, true));
-    EXPECT_TRUE(pool.map().ensure(7, 8, false));
+    buffer3.recover();
+    EXPECT_EQ(0, pool.usable().front().first);
+    EXPECT_EQ(128, pool.usable().front().second);
+}
+
+TEST(buffer_pool, alloc_and_recover_3) {
+    rwg_http::buffer_pool pool(128);
+
+    auto buffer1 = pool.alloc(2);
+    auto buffer2 = pool.alloc(2);
+    auto buffer3 = pool.alloc(8);
+
+    EXPECT_EQ(4, pool.usable().front().first);
+    EXPECT_EQ(8, pool.usable().front().second);
+
+    buffer2.recover();
+    EXPECT_EQ(2, pool.usable().front().first);
+    EXPECT_EQ(4, pool.usable().front().second);
+
+    auto buffer4 = pool.alloc(6);
+    EXPECT_EQ(2, pool.usable().front().first);
+    EXPECT_EQ(4, pool.usable().front().second);
+
+    auto buffer5 = pool.alloc(2);
+    EXPECT_EQ(4, pool.usable().front().first);
+    EXPECT_EQ(8, pool.usable().front().second);
+
+    auto buffer6 = pool.alloc(2);
+    EXPECT_EQ(6, pool.usable().front().first);
+    EXPECT_EQ(8, pool.usable().front().second);
+
+    auto buffer7 = pool.alloc(2);
+    buffer5.recover();
+    buffer6.recover();
+    EXPECT_EQ(2, pool.usable().front().first);
+    EXPECT_EQ(6, pool.usable().front().second);
 }
 
 TEST(buffer_pool, alloc_overflow) {
-    rwg_http::buffer_pool pool(128, 1);
+    rwg_http::buffer_pool pool(128);
     {
-        auto buffer = pool.alloc(1);
+        auto buffer = pool.alloc(65);
         try {
             pool.alloc(1);
             FAIL();
@@ -76,7 +97,7 @@ TEST(buffer_pool, alloc_overflow) {
 }
 
 TEST(buffer_pool, alloc_overflow_1) {
-    rwg_http::buffer_pool pool(128, 1);
+    rwg_http::buffer_pool pool(128);
     
     try {
         pool.alloc(129);
@@ -87,20 +108,8 @@ TEST(buffer_pool, alloc_overflow_1) {
     }
 }
 
-TEST(buffer_pool, alloc_overflow_2) {
-    rwg_http::buffer_pool pool(128, 2);
-    
-    try {
-        pool.alloc(128 * 2 + 1);
-        FAIL();
-    }
-    catch (const std::bad_alloc& ex) {
-        SUCCEED();
-    }
-}
-
 TEST(buffer_pool, assign_) {
-    rwg_http::buffer_pool pool(128, 1);
+    rwg_http::buffer_pool pool(128);
 
     auto buffer = pool.alloc(128);
 
@@ -115,7 +124,7 @@ TEST(buffer_pool, assign_) {
 }
 
 TEST(buffer_pool, insert_) {
-    rwg_http::buffer_pool pool(128, 1);
+    rwg_http::buffer_pool pool(128);
 
     auto buffer = pool.alloc(128);
 
@@ -131,7 +140,7 @@ TEST(buffer_pool, insert_) {
 }
 
 TEST(buffer_pool, copy_to) {
-    rwg_http::buffer_pool pool(128, 1);
+    rwg_http::buffer_pool pool(128);
     auto buffer = pool.alloc(128);
     auto str = "1111111111";
     buffer.assign(str, str + 11);
