@@ -15,7 +15,7 @@ private:
 
     rwg_http::buffer_pool& _pool;
 public:
-    session(int fd, rwg_http::buffer_pool& pool);
+    session(int fd, rwg_http::buffer_pool& pool, std::function<void (rwg_http::buf_outstream&)> notify_func);
 
     rwg_http::req& req();
     rwg_http::res& res();
