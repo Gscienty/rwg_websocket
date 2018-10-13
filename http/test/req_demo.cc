@@ -27,7 +27,11 @@ int main() {
 
     int cfd = ::accept(sfd, reinterpret_cast<sockaddr*>(&caddr), &caddr_len);
 
-    rwg_http::session sess(cfd, pool);
+    auto sync_func = [] (rwg_http::buf_outstream& out) -> void {
+        out.nonblock_sync();
+    };
+
+    rwg_http::session sess(cfd, pool, sync_func);
 
     std::cout << "ACCEPTED" << ' ' << cfd << std::endl;
 
@@ -49,15 +53,6 @@ int main() {
 
     std::thread thr(thr_func);
     thr.detach();
-
-    auto thr_func2 = [&] () -> void {
-        while (true) {
-            sess.res().sync();
-        }
-    };
-
-    std::thread thr2(thr_func2);
-    thr2.detach();
 
     sess.req().get_header();
 
