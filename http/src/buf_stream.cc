@@ -1,90 +1,134 @@
 #include "buf_stream.h"
+#include <iostream>
 
-rwg_http::buf_stream::buf_stream(rwg_http::buffer&& buffer)
+rwg_http::buf_instream::buf_instream(rwg_http::buffer&& buffer,
+                                     std::size_t unit_size,
+                                     std::function<std::size_t (std::uint8_t* s, std::size_t n)> sync_func)
     : _buffer(std::move(buffer))
-    , _bpos(0)
-    , _epos(0) {
+    , _unit_size(unit_size)
+    , _using_unit(nullptr)
+    , _using_unit_pos(0)
+    , _using_unit_size(0)
+    , _sync(sync_func) {
 
-    this->_buffer.fill(0, this->_epos, 0x00);
-}
-
-std::size_t rwg_http::buf_stream::bpos() const {
-    return this->_bpos;
-}
-
-std::size_t rwg_http::buf_stream::epos() const {
-    return this->_epos;
-}
-
-void rwg_http::buf_stream::clear() {
-    std::unique_lock<std::mutex> locker(this->_use_mtx);
-
-    this->_bpos = 0;
-    this->_epos = 0;
-}
-
-std::uint8_t rwg_http::buf_stream::getc() {
-    std::unique_lock<std::mutex> locker(this->_use_mtx);
-
-    this->wait_readable(locker);
-
-    std::uint8_t c = this->_buffer[this->_bpos];
-    this->_bpos++;
-
-    if (this->_buffer.unit_index(this->_bpos) != 0) {
-        this->_buffer.head_move_tail();
-
-        this->_bpos -= this->_buffer.unit_size();
-        this->_epos -= this->_buffer.unit_size();
-        
-        locker.unlock();
-        this->notify_writable();
-    }
-
-    return c;
-}
-
-void rwg_http::buf_stream::wait_readable(std::unique_lock<std::mutex>& locker) {
-    this->_readable_cond.wait(locker, [this] () -> bool { return this->_bpos != this->_epos; });
-}
-
-void rwg_http::buf_stream::wait_writable(std::unique_lock<std::mutex>& locker) {
-    this->_writable_cond.wait(locker, [this] () -> bool { return this->_epos != this->_buffer.size(); });
-}
-
-void rwg_http::buf_stream::notify_readable() {
-    this->_readable_cond.notify_one();
-
-    if (this->_readable_event) {
-        this->_readable_event();
+    int unit_count = this->_buffer.size() / unit_size;
+    for (auto i = 0; i < unit_count; i++) {
+        this->_free.push(this->_buffer.get() + (i * unit_size));
     }
 }
 
-void rwg_http::buf_stream::notify_writable() {
-    this->_writable_cond.notify_one();
+void rwg_http::buf_instream::__flush() {
+    std::unique_lock<std::mutex> lck(this->_mtx);
+    this->_ready_cond.wait(lck, [this] () -> bool { return !this->_ready.empty(); });
 
-    if (this->_writable_event) {
-        this->_writable_event();
+    if (this->_using_unit != nullptr) {
+        this->_free.push(this->_using_unit);
+    }
+    auto ret = this->_ready.front();
+    this->_ready.pop();
+
+    this->_using_unit = ret.first;
+    this->_using_unit_pos = 0;
+    this->_using_unit_size = ret.second;
+
+    lck.unlock();
+    this->_free_cond.notify_one();
+
+}
+
+void rwg_http::buf_instream::sync() {
+    std::unique_lock<std::mutex> lck(this->_mtx);
+    this->_free_cond.wait(lck, [this] () -> bool { return !this->_free.empty(); });
+
+    std::uint8_t* unit_ptr = this->_free.front();
+    this->_free.pop();
+
+    std::size_t size = this->_sync(unit_ptr, this->_unit_size);
+    this->_ready.push(std::make_pair(unit_ptr, size));
+
+    lck.unlock();
+    this->_ready_cond.notify_one();
+}
+
+std::uint8_t rwg_http::buf_instream::getc() {
+    if (this->_using_unit_pos >= this->_using_unit_size) {
+        this->__flush();
+    }
+
+    return this->_using_unit[this->_using_unit_pos++];
+}
+
+rwg_http::buf_outstream::buf_outstream(rwg_http::buffer&& buffer,
+                                       std::size_t unit_size,
+                                       std::function<void (std::uint8_t*, std::size_t n)> sync_func)
+    : _buffer(std::move(buffer))
+    , _unit_size(unit_size)
+    , _using_unit(nullptr)
+    , _using_unit_size(0)
+    , _sync(sync_func) {
+    
+    int unit_count = this->_buffer.size() / unit_size;
+    for (auto i = 0; i < unit_count; i++) {
+        this->_free.push(this->_buffer.get() + (i * unit_size));
     }
 }
 
-void rwg_http::buf_stream::set_readable_event(std::function<void ()> func) {
-    this->_readable_event = func;
+void rwg_http::buf_outstream::__flush() {
+    std::unique_lock<std::mutex> lck(this->_mtx);
+    this->_free_cond.wait(lck, [this] () -> bool { return !this->_free.empty(); });
+
+    if (this->_using_unit != nullptr) {
+        this->_ready.push(std::make_pair(this->_using_unit, this->_using_unit_size));
+    }
+    this->_using_unit = this->_free.front();
+    this->_using_unit_size = 0;
+    this->_free.pop();
+
+    lck.unlock();
+    this->_ready_cond.notify_one();
 }
 
-void rwg_http::buf_stream::set_writable_event(std::function<void ()> func) {
-    this->_writable_event = func;
+void rwg_http::buf_outstream::flush() {
+    if (this->_using_unit_size == 0) {
+        return;
+    }
+    this->__flush();
+
+    std::unique_lock<std::mutex> lck(this->_mtx);
+    if (this->_ready.empty()) {
+        return;
+    }
+    auto unit = this->_ready.front();
+    this->_ready.pop();
+
+    this->_sync(unit.first, unit.second);
+    this->_free.push(unit.first);
+
+    lck.unlock();
+    this->_free_cond.notify_one();
+
+    lck.lock();
+    this->_free_cond.wait(lck, [this] () -> bool { return this->_ready.empty(); });
 }
 
-void rwg_http::buf_stream::putc(std::uint8_t c) {
-    std::unique_lock<std::mutex> locker(this->_use_mtx);
-    this->wait_writable(locker);
+void rwg_http::buf_outstream::sync() {
+    std::unique_lock<std::mutex> lck(this->_mtx);
+    this->_ready_cond.wait(lck, [this] () -> bool { return !this->_ready.empty(); });
+    
+    auto unit = this->_ready.front();
+    this->_ready.pop();
 
+    this->_sync(unit.first, unit.second);
+    this->_free.push(unit.first);
 
-    this->_buffer[this->_epos] = c;
-    this->_epos++;
-
-    locker.unlock();
-    this->notify_readable();
+    lck.unlock();
+    this->_free_cond.notify_one();
 }
 
+void rwg_http::buf_outstream::putc(std::uint8_t c) {
+    if (this->_using_unit == nullptr || this->_using_unit_size == this->_unit_size) {
+        this->__flush();
+    }
+
+    this->_using_unit[this->_using_unit_size++] = c;
+}

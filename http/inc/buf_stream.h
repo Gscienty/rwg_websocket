@@ -1,101 +1,113 @@
 #pragma once
 
 #include "buffer_pool.h"
-#include <streambuf>
 #include <cstdint>
 #include <algorithm>
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+#include <queue>
+#include <iostream>
 
 namespace rwg_http {
 
-class buf_stream {
+class buf_instream {
 private:
     rwg_http::buffer _buffer;
-    std::size_t _bpos;
-    std::size_t _epos;
 
-    std::mutex _use_mtx;
-    std::condition_variable _readable_cond;
-    std::condition_variable _writable_cond;
+    std::size_t _unit_size;
 
-    std::function<void ()> _readable_event;
-    std::function<void ()> _writable_event;
+    std::uint8_t* _using_unit;
+    std::size_t _using_unit_pos;
+    std::size_t _using_unit_size;
 
-    void wait_readable(std::unique_lock<std::mutex>& locker);
-    void wait_writable(std::unique_lock<std::mutex>& locker);
+    std::queue<std::uint8_t*> _free; 
+    std::queue<std::pair<std::uint8_t*, std::size_t>> _ready;
 
-    void notify_readable();
-    void notify_writable();
+    std::mutex _mtx;
+    std::condition_variable _free_cond;
+    std::condition_variable _ready_cond;
+
+    std::function<std::size_t (std::uint8_t* s, std::size_t n)> _sync;
+
+    void __flush();
 public:
-    buf_stream(rwg_http::buffer&& buffer);
+    buf_instream(rwg_http::buffer&& buffer,
+                 std::size_t unit_size,
+                 std::function<std::size_t (std::uint8_t* s, std::size_t n)> flush_func);
 
-    std::size_t bpos() const;
-    std::size_t epos() const;
-
-    void set_readable_event(std::function<void ()> func);
-    void set_writable_event(std::function<void ()> func);
-
-    void clear();
+    void sync();
 
     std::uint8_t getc();
-    void putc(std::uint8_t c);
 
-    // use for in stream
-    template<typename _T_Input_Iter> void write(_T_Input_Iter s_itr, std::size_t n) {
-        std::size_t remain = n;
+    template<typename _T_Output_Itr> void read(_T_Output_Itr s, std::size_t n) {
+        std::size_t remain = n;        
+        _T_Output_Itr s_pos = s;
 
-        _T_Input_Iter itr = s_itr;
         while (remain != 0) {
-            std::size_t write_size = std::min(remain, this->_buffer.size() - this->_epos);
+            if (this->_using_unit_pos == this->_using_unit_size) {
+                this->__flush();
+            }
+            std::size_t size = std::min(remain, this->_using_unit_size - this->_using_unit_pos);
 
-            std::unique_lock<std::mutex> locker(this->_use_mtx);
-            this->wait_writable(locker);
-
-            this->_buffer.insert(itr, itr + write_size, this->_epos);
-            this->_epos += write_size;
-
-            locker.unlock();
-            this->notify_readable();
-
-            remain -= write_size;
-            itr += write_size;
+            std::copy(this->_using_unit + this->_using_unit_pos,
+                      this->_using_unit + this->_using_unit_pos + size,
+                      s_pos);
+            s_pos += size;
+            remain -= size;
+            this->_using_unit_pos += size;
         }
     }
+};
 
-    // use for out stream
-    template<typename _T_Output_Iter> std::size_t read(_T_Output_Iter itr, std::size_t n) {
+class buf_outstream {
+private:
+    rwg_http::buffer _buffer;
+
+    std::size_t _unit_size;
+    std::uint8_t* _using_unit;
+    std::size_t _using_unit_size;
+    
+    std::queue<std::uint8_t*> _free;
+    std::queue<std::pair<std::uint8_t*, std::size_t>> _ready;
+
+    std::mutex _mtx;
+    std::condition_variable _free_cond;
+    std::condition_variable _ready_cond;
+
+    std::function<void (std::uint8_t* s, std::size_t n)> _sync;
+
+    void __flush();
+public:
+    buf_outstream(rwg_http::buffer&& buffer,
+                  std::size_t unit_size,
+                  std::function<void (std::uint8_t* s, std::size_t n)> sync_func);
+
+    void sync();
+    void flush();
+
+    void putc(std::uint8_t c);
+
+    template<typename _T_Input_Itr> void write(_T_Input_Itr s, std::size_t n) {
         std::size_t remain = n;
+        _T_Input_Itr s_pos = s;
 
-        if (remain != 0) {
-            std::size_t read_size = std::min(remain, this->_epos - this->_bpos);
-
-            std::unique_lock<std::mutex> locker(this->_use_mtx);
-            this->wait_readable(locker);
-
-            this->_buffer.copy_to(this->_bpos, this->_bpos + read_size, itr);
-            this->_bpos += read_size;
-
-            std::size_t nth_unit = this->_buffer.unit_index(this->_bpos);
-
-            if (nth_unit != 0) {
-                for (std::size_t i = 0; i < nth_unit; i++) {
-                    this->_buffer.head_move_tail();
-                }
-
-                std::size_t off_size = nth_unit * this->_buffer.unit_size();
-
-                this->_bpos -= off_size;
-                this->_epos -= off_size;
-
-                this->notify_writable();
+        while (remain != 0) {
+            if (this->_using_unit == nullptr || this->_using_unit_size == this->_unit_size) {
+                this->__flush();
             }
+            std::size_t size = std::min(remain, this->_unit_size - this->_using_unit_size);
 
-            remain -= read_size;
+            std::copy(s_pos, s_pos + size, this->_using_unit + this->_using_unit_size);
+
+            s_pos += size;
+            remain -= size;
+            this->_using_unit_size += size;
+
+            if (this->_using_unit_size == this->_unit_size) {
+                this->__flush();
+            }
         }
-
-        return n - remain;
     }
 };
 
