@@ -36,6 +36,7 @@ public:
 
     void sync();
     void close();
+    void clear();
 };
 
 }

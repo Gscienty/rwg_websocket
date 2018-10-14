@@ -81,7 +81,14 @@ void rwg_http::res::close() {
     this->_close_flag = true;
 }
 
-void rwg_http::res::end() {
+void rwg_http::res::flush() {
     this->_str.flush();
+}
+
+void rwg_http::res::clear() {
+    this->_version = "HTTP/1.1";
+    this->_status_code = 200;
+    this->_description = "OK";
+    this->_header_parameters.clear();
 }
 

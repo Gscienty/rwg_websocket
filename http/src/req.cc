@@ -131,3 +131,10 @@ void rwg_http::req::close() {
     this->_close_flag = true;
     this->_str.close();
 }
+
+void rwg_http::req::clear() {
+    this->_version.clear();
+    this->_method.clear();
+    this->_uri.clear();
+    this->_header_parameters.clear();
+}

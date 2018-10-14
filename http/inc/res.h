@@ -40,8 +40,12 @@ public:
     std::map<std::string, std::string>& header_parameters();
 
     void write_header();
+    template<typename _T_Input_Itr> void write(_T_Input_Itr s, std::size_t n) {
+        this->_str.write(s, n);
+    }
     void close();
-    void end();
+    void flush();
+    void clear();
 };
 
 };
