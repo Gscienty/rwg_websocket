@@ -22,7 +22,7 @@ void rwg_http::chain_middleware::execute(rwg_http::session& session) const {
             }
         }
 
-        if (handled) {
+        if (handled == false) {
             session.res().status_code() = 400;
             session.res().description() = "Bad Request";
             session.res().write_header();
