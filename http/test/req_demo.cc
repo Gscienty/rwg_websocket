@@ -33,7 +33,9 @@ int main() {
         thread_pool.submit([&] () -> void { out.nonblock_sync(); });
     };
 
-    rwg_http::session sess(cfd, pool, sync_func);
+    auto close_func = [] () -> void { std::cout << "CLOSE FUNC\n";  };
+
+    rwg_http::session sess(cfd, pool, sync_func, close_func);
 
     std::cout << "ACCEPTED" << ' ' << cfd << std::endl;
 
@@ -47,7 +49,7 @@ int main() {
         ::epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &event);
         while (shutdown == false) {
             ::epoll_event eve;
-            ::epoll_wait(epfd, &eve, 10, -1);
+            ::epoll_wait(epfd, &eve, 1, -1);
 
             reinterpret_cast<rwg_http::session*>(eve.data.ptr)->req().sync();
         }
