@@ -7,7 +7,7 @@
 #include <condition_variable>
 #include <functional>
 #include <queue>
-#include <iostream>
+#include <atomic>
 
 namespace rwg_http {
 
@@ -30,13 +30,18 @@ private:
 
     std::function<std::size_t (std::uint8_t* s, std::size_t n)> _sync;
 
-    void __flush();
+    std::atomic<bool> _closed_flag;
+    std::function<void ()> _close_callback;
+
+    bool __flush();
 public:
     buf_instream(rwg_http::buffer&& buffer,
                  std::size_t unit_size,
-                 std::function<std::size_t (std::uint8_t* s, std::size_t n)> flush_func);
+                 std::function<std::size_t (std::uint8_t* s, std::size_t n)> flush_func,
+                 std::function<void ()> close_callback);
 
     void sync();
+    void close();
 
     std::uint8_t getc();
 
@@ -45,11 +50,16 @@ public:
         _T_Output_Itr s_pos = s;
 
         while (remain != 0) {
-            if (this->_using_unit_pos == this->_using_unit_size) {
-                this->__flush();
+            if (this->_closed_flag) {
+                return;
             }
-            std::size_t size = std::min(remain, this->_using_unit_size - this->_using_unit_pos);
+            if (this->_using_unit_pos == this->_using_unit_size) {
+                if (!this->__flush()) {
+                    return;
+                }
+            }
 
+            std::size_t size = std::min(remain, this->_using_unit_size - this->_using_unit_pos);
             std::copy(this->_using_unit + this->_using_unit_pos,
                       this->_using_unit + this->_using_unit_pos + size,
                       s_pos);
@@ -75,29 +85,39 @@ private:
     std::condition_variable _free_cond;
     std::condition_variable _ready_cond;
 
-    std::function<void (std::uint8_t* s, std::size_t n)> _sync;
+    std::function<bool (std::uint8_t* s, std::size_t n)> _sync;
     std::function<void (rwg_http::buf_outstream&)> _notify;
 
-    void __flush();
+    std::atomic<bool> _closed_flag;
+    std::function<void ()> _close_callback;
+
+    bool __flush();
 public:
     buf_outstream(rwg_http::buffer&& buffer,
                   std::size_t unit_size,
-                  std::function<void (std::uint8_t* s, std::size_t n)> sync_func,
-                  std::function<void (rwg_http::buf_outstream&)> notify_func);
+                  std::function<bool (std::uint8_t* s, std::size_t n)> sync_func,
+                  std::function<void (rwg_http::buf_outstream&)> notify_func,
+                  std::function<void ()> close_callback);
 
     void sync();
+    void close();
     void nonblock_sync();
-    void flush();
+    bool flush();
 
     void putc(std::uint8_t c);
 
     template<typename _T_Input_Itr> void write(_T_Input_Itr s, std::size_t n) {
+        if (this->_closed_flag) {
+            return;
+        }
         std::size_t remain = n;
         _T_Input_Itr s_pos = s;
 
         while (remain != 0) {
             if (this->_using_unit == nullptr || this->_using_unit_size == this->_unit_size) {
-                this->__flush();
+                if (!this->__flush()) {
+                    return;
+                }
             }
             std::size_t size = std::min(remain, this->_unit_size - this->_using_unit_size);
 
@@ -108,7 +128,9 @@ public:
             this->_using_unit_size += size;
 
             if (this->_using_unit_size == this->_unit_size) {
-                this->__flush();
+                if (!this->__flush()) {
+                    return;
+                }
             }
         }
     }
