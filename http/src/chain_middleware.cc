@@ -6,6 +6,9 @@ void rwg_http::chain_middleware::append(std::function<bool (rwg_http::session&)>
 
 void rwg_http::chain_middleware::execute(rwg_http::session& session) const {
     for (auto middleware_func : this->_middlewares) {
+        if (session.closed_flag()) {
+            break;
+        }
         if (!middleware_func(session)) {
             break;
         }
