@@ -4,7 +4,10 @@
 #include <errno.h>
 #include <string.h>
 
-rwg_http::res::res(int fd, rwg_http::buffer&& buffer, std::function<void (rwg_http::buf_outstream&)> notify_func)
+rwg_http::res::res(int fd,
+                   rwg_http::buffer&& buffer,
+                   std::function<void (rwg_http::buf_outstream&)> notify_func,
+                   std::function<void ()> close_callback)
     : _fd(fd)
     , _str(std::move(buffer),
            16,
@@ -12,10 +15,12 @@ rwg_http::res::res(int fd, rwg_http::buffer&& buffer, std::function<void (rwg_ht
                      this,
                      std::placeholders::_1,
                      std::placeholders::_2),
-           notify_func)
+           notify_func,
+           close_callback)
     , _version("HTTP/1.1")
     , _status_code(200)
-    , _description("OK") {
+    , _description("OK")
+    , _close_flag(false) {
 }
 
 std::string& rwg_http::res::version() {
@@ -56,8 +61,24 @@ void rwg_http::res::write_header() {
     this->_str.write(__crlf.begin(), __crlf.size());
 }
 
-void rwg_http::res::__sync(std::uint8_t* s, std::size_t n) {
-    ::write(this->_fd, s, n);
+bool rwg_http::res::__sync(std::uint8_t* s, std::size_t n) {
+    if (this->_close_flag) {
+        return false;
+    }
+    int size = ::write(this->_fd, s, n);
+    if (size <= 0) {
+        this->close();
+        return false;
+    }
+    return true;
+}
+
+void rwg_http::res::close() {
+    if (this->_close_flag) {
+        return;
+    }
+    this->_str.close();
+    this->_close_flag = true;
 }
 
 void rwg_http::res::end() {

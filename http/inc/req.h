@@ -4,6 +4,8 @@
 #include "buffer_pool.h"
 #include <string>
 #include <map>
+#include <functional>
+#include <atomic>
 
 namespace rwg_http {
 
@@ -20,8 +22,10 @@ private:
     void get_general_header();
     void get_request_header();
     std::size_t __sync(std::uint8_t* s, std::size_t n);
+
+    std::atomic<bool> _close_flag;
 public:
-    req(int fd, rwg_http::buffer&& buffer);
+    req(int fd, rwg_http::buffer&& buffer, std::function<void ()> close_callback);
 
     std::string& version();
     std::string& method();
@@ -31,6 +35,7 @@ public:
     void get_header();
 
     void sync();
+    void close();
 };
 
 }

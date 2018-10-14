@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <mutex>
 #include <condition_variable>
+#include <atomic>
 
 namespace rwg_http {
 
@@ -24,9 +25,14 @@ private:
     std::mutex _sync_mtx;
     std::condition_variable _syncable_cond;
 
-    void __sync(std::uint8_t* s, std::size_t n);
+    std::atomic<bool> _close_flag;
+
+    bool __sync(std::uint8_t* s, std::size_t n);
 public:
-    res(int fd, rwg_http::buffer&& buffer, std::function<void (rwg_http::buf_outstream&)> notify_func);
+    res(int fd,
+        rwg_http::buffer&& buffer,
+        std::function<void (rwg_http::buf_outstream&)> notify_func,
+        std::function<void ()> close_callback);
 
     std::string& version();
     std::uint16_t& status_code();
@@ -34,7 +40,7 @@ public:
     std::map<std::string, std::string>& header_parameters();
 
     void write_header();
-
+    void close();
     void end();
 };
 

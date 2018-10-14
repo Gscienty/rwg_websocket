@@ -4,14 +4,16 @@
 #include <string.h>
 #include <iostream>
 
-rwg_http::req::req(int fd, rwg_http::buffer&& buffer)
+rwg_http::req::req(int fd, rwg_http::buffer&& buffer, std::function<void ()> close_callback)
     : _fd(fd)
     , _str(std::move(buffer),
            16,
            std::bind(&rwg_http::req::__sync,
                      this,
                      std::placeholders::_1,
-                     std::placeholders::_2)) {
+                     std::placeholders::_2),
+           close_callback)
+    , _close_flag(false) {
 }
 
 static const std::uint8_t __crlf[] = { '\r', '\n', '\r', '\n' };
@@ -92,7 +94,8 @@ void rwg_http::req::get_header() {
 
 std::size_t rwg_http::req::__sync(std::uint8_t* s, std::size_t n) {
     ::ssize_t size = ::read(this->_fd, s, n);
-    if (size == -1) {
+    if (size <= 0) {
+        this->close();
         return 0;
     }
     return size;
@@ -115,5 +118,16 @@ std::map<std::string, std::string>& rwg_http::req::header_parameters() {
 }
 
 void rwg_http::req::sync() {
+    if (this->_close_flag) {
+        return;
+    }
     this->_str.sync();
+}
+
+void rwg_http::req::close() {
+    if (this->_close_flag) {
+        return;
+    }
+    this->_close_flag = true;
+    this->_str.close();
 }
