@@ -1,4 +1,5 @@
 #include "session.h"
+#include "thread_pool.h"
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -8,6 +9,7 @@
 #include <iostream>
 
 int main() {
+    rwg_http::thread_pool thread_pool(3);
     rwg_http::buffer_pool pool(128);
     int epfd = ::epoll_create(1);
 
@@ -27,8 +29,8 @@ int main() {
 
     int cfd = ::accept(sfd, reinterpret_cast<sockaddr*>(&caddr), &caddr_len);
 
-    auto sync_func = [] (rwg_http::buf_outstream& out) -> void {
-        out.nonblock_sync();
+    auto sync_func = [&] (rwg_http::buf_outstream& out) -> void {
+        thread_pool.submit([&] () -> void { out.nonblock_sync(); });
     };
 
     rwg_http::session sess(cfd, pool, sync_func);
@@ -70,6 +72,8 @@ int main() {
     ::close(cfd);
     ::close(sfd);
     ::close(epfd);
+
+    thread_pool.shutdown();
 
     return 0;
 }
