@@ -1,5 +1,5 @@
 #include "server.h"
-#include "startup.h"
+#include "staticfile_startup.h"
 #include <iostream>
 
 int main() {
@@ -20,7 +20,7 @@ int main() {
 
     server.chain().append_middleware(staticfile);
 
-    server.listen("127.0.0.1", 8088);
+    server.listen("0.0.0.0", 5000);
     std::cout << "RUNNING\n";
     server.start(16, -1);
 

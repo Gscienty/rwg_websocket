@@ -1,4 +1,4 @@
-#include "startup.h"
+#include "staticfile_startup.h"
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
