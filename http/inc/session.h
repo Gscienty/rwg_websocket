@@ -25,6 +25,7 @@ private:
 
     ::epoll_event _event;
     std::atomic<bool> _reading;
+    std::atomic<bool> _in_chain;
 public:
     session(int fd,
             rwg_http::buffer_pool& pool,
@@ -39,6 +40,7 @@ public:
 
     ::epoll_event& event() { return this->_event; }
     std::atomic<bool>& reading() { return this->_reading; }
+    std::atomic<bool>& in_chain() { return this->_in_chain; }
 };
 
 }

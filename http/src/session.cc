@@ -6,12 +6,13 @@ rwg_http::session::session(int fd,
                            std::function<void (rwg_http::buf_outstream&)> need_outsync_func,
                            std::function<void ()> close_callback)
     : _fd(fd)
-    , _req(std::make_shared<rwg_http::req>(fd, pool.alloc(32), std::bind(&rwg_http::session::close, this)))
-    , _res(std::make_shared<rwg_http::res>(fd, pool.alloc(32), need_outsync_func, std::bind(&rwg_http::session::close, this)))
+    , _req(std::make_shared<rwg_http::req>(fd, std::bind(&rwg_http::session::close, this)))
+    , _res(std::make_shared<rwg_http::res>(fd, need_outsync_func, std::bind(&rwg_http::session::close, this)))
     , _pool(pool)
     , _closed_flag(false)
     , _close_callback(close_callback)
-    , _reading(false) {
+    , _reading(false)
+    , _in_chain(false) {
 }
 
 void rwg_http::session::close() {
@@ -19,6 +20,8 @@ void rwg_http::session::close() {
         return;
     }
     this->_closed_flag = true;
+    this->_req->release();
+    this->_res->release();
     this->_req->close();
     this->_res->close();
     this->_close_callback();
