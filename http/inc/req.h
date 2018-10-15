@@ -25,7 +25,8 @@ private:
 
     std::atomic<bool> _close_flag;
 public:
-    req(int fd, rwg_http::buffer&& buffer, std::function<void ()> close_callback);
+    req(int fd, std::function<void ()> close_callback);
+    virtual ~req();
 
     std::string& version();
     std::string& method();
@@ -37,6 +38,8 @@ public:
     void sync();
     void close();
     void clear();
+    void set_buffer(std::unique_ptr<rwg_http::buffer>&& buffer);
+    void release();
 };
 
 }

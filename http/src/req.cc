@@ -4,16 +4,19 @@
 #include <string.h>
 #include <iostream>
 
-rwg_http::req::req(int fd, rwg_http::buffer&& buffer, std::function<void ()> close_callback)
+rwg_http::req::req(int fd, std::function<void ()> close_callback)
     : _fd(fd)
-    , _str(std::move(buffer),
-           16,
+    , _str(16,
            std::bind(&rwg_http::req::__sync,
                      this,
                      std::placeholders::_1,
                      std::placeholders::_2),
            close_callback)
     , _close_flag(false) {
+}
+
+rwg_http::req::~req() {
+    this->release();
 }
 
 static const std::uint8_t __crlf[] = { '\r', '\n', '\r', '\n' };
@@ -137,4 +140,12 @@ void rwg_http::req::clear() {
     this->_method.clear();
     this->_uri.clear();
     this->_header_parameters.clear();
+} 
+
+void rwg_http::req::set_buffer(std::unique_ptr<rwg_http::buffer>&& buffer) {
+    this->_str.set_buffer(std::move(buffer));
+}
+
+void rwg_http::req::release() {
+    this->_str.release();
 }

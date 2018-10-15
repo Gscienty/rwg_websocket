@@ -30,9 +30,9 @@ private:
     bool __sync(std::uint8_t* s, std::size_t n);
 public:
     res(int fd,
-        rwg_http::buffer&& buffer,
         std::function<void (rwg_http::buf_outstream&)> notify_func,
         std::function<void ()> close_callback);
+    virtual ~res();
 
     std::string& version();
     std::uint16_t& status_code();
@@ -46,6 +46,9 @@ public:
     void close();
     void flush();
     void clear();
+
+    void set_buffer(std::unique_ptr<rwg_http::buffer>&& buffer);
+    void release();
 };
 
 };

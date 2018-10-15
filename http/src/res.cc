@@ -5,12 +5,10 @@
 #include <string.h>
 
 rwg_http::res::res(int fd,
-                   rwg_http::buffer&& buffer,
                    std::function<void (rwg_http::buf_outstream&)> notify_func,
                    std::function<void ()> close_callback)
     : _fd(fd)
-    , _str(std::move(buffer),
-           16,
+    , _str(16,
            std::bind(&rwg_http::res::__sync,
                      this,
                      std::placeholders::_1,
@@ -21,6 +19,10 @@ rwg_http::res::res(int fd,
     , _status_code(200)
     , _description("OK")
     , _close_flag(false) {
+}
+
+rwg_http::res::~res() {
+    this->release();
 }
 
 std::string& rwg_http::res::version() {
@@ -92,3 +94,10 @@ void rwg_http::res::clear() {
     this->_header_parameters.clear();
 }
 
+void rwg_http::res::set_buffer(std::unique_ptr<rwg_http::buffer>&& buffer) {
+    this->_str.set_buffer(std::move(buffer));
+}
+
+void rwg_http::res::release() {
+    this->_str.release();
+}
