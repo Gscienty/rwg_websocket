@@ -5,7 +5,7 @@ void rwg_http::chain_middleware::append(std::function<bool (rwg_http::session&)>
 }
 
 void rwg_http::chain_middleware::execute(rwg_http::session& session) const {
-    while (!session.closed_flag()) {
+    if (!session.closed_flag()) {
         session.req().clear();
         session.res().clear();
 
