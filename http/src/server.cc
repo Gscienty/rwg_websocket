@@ -48,7 +48,10 @@ void rwg_http::server::start(std::size_t batch_size, int timeout) {
                 // session
                 if (event.events & EPOLLIN) {
                     auto session_ptr = reinterpret_cast<rwg_http::session*>(event.data.ptr);
-                    if (!session_ptr->reading()) {
+                    if (!session_ptr->in_chain()) {
+                        this->_thread_pool->submit(std::bind(&rwg_http::server::__execute_chain, this, session_ptr));
+                    }
+                    else if (!session_ptr->reading()) {
                         session_ptr->reading() = true;
                         this->_thread_pool->submit(std::bind(&rwg_http::server::__recv_data, this, session_ptr));
                     }
@@ -88,9 +91,7 @@ void rwg_http::server::__accept() {
 
     ::epoll_ctl(this->_epfd, EPOLL_CTL_ADD, cfd, &session_ptr->event());
 
-    this->_chain.execute(*session_ptr);
-
-    session_ptr->close();
+    this->__execute_chain(session_ptr.get());
 }
 
 void rwg_http::server::__recv_data(rwg_http::session* session) {
@@ -113,4 +114,19 @@ void rwg_http::server::__close(int cfd) {
 
 rwg_http::chain_middleware& rwg_http::server::chain() {
     return this->_chain;
+}
+
+void rwg_http::server::__execute_chain(rwg_http::session* session) {
+    if (session->closed_flag()) {
+        return;
+    }
+    session->in_chain() = true;
+    session->req().set_buffer(this->_buffer_pool->alloc(32));
+    session->res().set_buffer(this->_buffer_pool->alloc(32));
+    
+    this->_chain.execute(*session);
+
+    session->req().release();
+    session->res().release();
+    session->in_chain() = false;
 }
