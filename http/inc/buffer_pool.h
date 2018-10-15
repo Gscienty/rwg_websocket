@@ -25,7 +25,7 @@ private:
 public:
     buffer_pool(std::size_t pool_size);
 
-    rwg_http::buffer alloc(std::size_t demand_size);
+    std::unique_ptr<rwg_http::buffer> alloc(std::size_t demand_size);
 
     std::list<std::pair<std::size_t, std::size_t>>& usable() { return this->_usable; }
     std::list<std::pair<std::size_t, std::size_t>>& unusable() { return this->_unusable; }

@@ -16,7 +16,7 @@ std::size_t rwg_http::buffer_pool::__calc_min_demand(std::size_t size) const {
     return ret;
 }
 
-rwg_http::buffer rwg_http::buffer_pool::alloc(std::size_t demand_size) {
+std::unique_ptr<rwg_http::buffer> rwg_http::buffer_pool::alloc(std::size_t demand_size) {
     std::size_t size = this->__calc_min_demand(demand_size);
     std::lock_guard<std::mutex> locker(this->_pool_mtx);
 
@@ -35,12 +35,12 @@ rwg_http::buffer rwg_http::buffer_pool::alloc(std::size_t demand_size) {
             this->_usable.erase(usable_itr);
             auto use_itr = this->__use(block);
 
-            return rwg_http::buffer(std::bind(&rwg_http::buffer_pool::__recover,
-                                              this,
-                                              std::placeholders::_1),
-                                    demand_size,
-                                    &this->_pool.get()[block.first],
-                                    use_itr);
+            return std::unique_ptr<rwg_http::buffer>(new rwg_http::buffer(std::bind(&rwg_http::buffer_pool::__recover,
+                                                                                    this,
+                                                                                    std::placeholders::_1),
+                                                                          demand_size,
+                                                                          &this->_pool.get()[block.first],
+                                                                          use_itr));
         }
     }
 

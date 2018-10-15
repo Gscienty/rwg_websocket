@@ -1,23 +1,40 @@
 #include "buf_stream.h"
 #include <iostream>
 
-rwg_http::buf_instream::buf_instream(rwg_http::buffer&& buffer,
-                                     std::size_t unit_size,
+rwg_http::buf_instream::buf_instream(std::size_t unit_size,
                                      std::function<std::size_t (std::uint8_t* s, std::size_t n)> sync_func,
                                      std::function<void ()> close_callback)
-    : _buffer(std::move(buffer))
-    , _unit_size(unit_size)
+    : _unit_size(unit_size)
     , _using_unit(nullptr)
     , _using_unit_pos(0)
     , _using_unit_size(0)
     , _sync(sync_func)
-    , _closed_flag(false)
+    , _closed_flag(true)
     , _close_callback(close_callback) {
+}
 
-    int unit_count = this->_buffer.size() / unit_size;
+void rwg_http::buf_instream::set_buffer(std::unique_ptr<rwg_http::buffer>&& buffer) {
+    std::lock_guard<std::mutex> lck(this->_mtx);
+    this->_closed_flag = false;
+    this->_buffer = std::move(buffer);
+
+    int unit_count = this->_buffer->size() / this->_unit_size;
     for (auto i = 0; i < unit_count; i++) {
-        this->_free.push(this->_buffer.get() + (i * unit_size));
+        this->_free.push(this->_buffer->get() + (i * this->_unit_size));
     }
+}
+
+void rwg_http::buf_instream::release() {
+    std::unique_lock<std::mutex> lck(this->_mtx);
+    while (!this->_free.empty()) { this->_free.pop(); }
+    while (!this->_ready.empty()) { this->_free.pop(); }
+    this->_closed_flag = true;
+    if (bool(this->_buffer)) { 
+        delete this->_buffer.release();
+    }
+    lck.unlock();
+    this->_free_cond.notify_one();
+    this->_ready_cond.notify_one();
 }
 
 bool rwg_http::buf_instream::__flush() {
@@ -91,24 +108,41 @@ std::uint8_t rwg_http::buf_instream::getc() {
     return this->_using_unit[this->_using_unit_pos++];
 }
 
-rwg_http::buf_outstream::buf_outstream(rwg_http::buffer&& buffer,
-                                       std::size_t unit_size,
+rwg_http::buf_outstream::buf_outstream(std::size_t unit_size,
                                        std::function<bool (std::uint8_t*, std::size_t n)> sync_func,
                                        std::function<void (rwg_http::buf_outstream&)> notify_func,
                                        std::function<void ()> close_callback)
-    : _buffer(std::move(buffer))
-    , _unit_size(unit_size)
+    : _unit_size(unit_size)
     , _using_unit(nullptr)
     , _using_unit_size(0)
     , _sync(sync_func)
     , _notify(notify_func)
-    , _closed_flag(false)
+    , _closed_flag(true)
     , _close_callback(close_callback) {
+}
+
+void rwg_http::buf_outstream::set_buffer(std::unique_ptr<rwg_http::buffer>&& buffer) {
+    std::lock_guard<std::mutex> lck(this->_mtx);
+    this->_closed_flag = false;
+    this->_buffer = std::move(buffer);
     
-    int unit_count = this->_buffer.size() / unit_size;
+    int unit_count = this->_buffer->size() / this->_unit_size;
     for (auto i = 0; i < unit_count; i++) {
-        this->_free.push(this->_buffer.get() + (i * unit_size));
+        this->_free.push(this->_buffer->get() + (i * this->_unit_size));
     }
+}
+
+void rwg_http::buf_outstream::release() {
+    std::unique_lock<std::mutex> lck(this->_mtx);
+    while (!this->_free.empty()) { this->_free.pop(); }
+    while (!this->_ready.empty()) { this->_ready.pop(); }
+    this->_closed_flag = true;
+    if (bool(this->_buffer)) {
+        delete this->_buffer.release();
+    }
+    lck.unlock();
+    this->_free_cond.notify_one();
+    this->_ready_cond.notify_one();
 }
 
 bool rwg_http::buf_outstream::__flush() {

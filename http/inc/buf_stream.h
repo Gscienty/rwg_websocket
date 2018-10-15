@@ -8,12 +8,13 @@
 #include <functional>
 #include <queue>
 #include <atomic>
+#include <memory>
 
 namespace rwg_http {
 
 class buf_instream {
 private:
-    rwg_http::buffer _buffer;
+    std::unique_ptr<rwg_http::buffer> _buffer;
 
     std::size_t _unit_size;
 
@@ -35,13 +36,14 @@ private:
 
     bool __flush();
 public:
-    buf_instream(rwg_http::buffer&& buffer,
-                 std::size_t unit_size,
+    buf_instream(std::size_t unit_size,
                  std::function<std::size_t (std::uint8_t* s, std::size_t n)> flush_func,
                  std::function<void ()> close_callback);
 
     void sync();
     void close();
+    void set_buffer(std::unique_ptr<rwg_http::buffer>&& buffer);
+    void release();
 
     std::uint8_t getc();
 
@@ -72,7 +74,7 @@ public:
 
 class buf_outstream {
 private:
-    rwg_http::buffer _buffer;
+    std::unique_ptr<rwg_http::buffer> _buffer;
 
     std::size_t _unit_size;
     std::uint8_t* _using_unit;
@@ -93,8 +95,7 @@ private:
 
     bool __flush();
 public:
-    buf_outstream(rwg_http::buffer&& buffer,
-                  std::size_t unit_size,
+    buf_outstream(std::size_t unit_size,
                   std::function<bool (std::uint8_t* s, std::size_t n)> sync_func,
                   std::function<void (rwg_http::buf_outstream&)> notify_func,
                   std::function<void ()> close_callback);
@@ -103,6 +104,8 @@ public:
     void close();
     void nonblock_sync();
     bool flush();
+    void set_buffer(std::unique_ptr<rwg_http::buffer>&& buffer);
+    void release();
 
     void putc(std::uint8_t c);
 
