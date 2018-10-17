@@ -10,6 +10,10 @@
 #include <atomic>
 #include <memory>
 
+#ifdef DEBUG
+#include <iostream>
+#endif
+
 namespace rwg_http {
 
 class buf_instream {
@@ -34,11 +38,14 @@ private:
     std::atomic<bool> _closed_flag;
     std::function<void ()> _close_callback;
 
+    int _log_fd;
+
     bool __flush();
 public:
     buf_instream(std::size_t unit_size,
                  std::function<std::size_t (std::uint8_t* s, std::size_t n)> flush_func,
-                 std::function<void ()> close_callback);
+                 std::function<void ()> close_callback,
+                 int fd);
 
     void sync();
     void close();
@@ -48,15 +55,24 @@ public:
     std::uint8_t getc();
 
     template<typename _T_Output_Itr> void read(_T_Output_Itr s, std::size_t n) {
+#ifdef DEBUG
+        std::cout << this->_log_fd << " buf_instream: read begin" << std::endl;
+#endif
         std::size_t remain = n;        
         _T_Output_Itr s_pos = s;
 
         while (remain != 0) {
             if (this->_closed_flag) {
+#ifdef DEBUG
+                std::cout << this->_log_fd << " buf_instream: read interrupt (closed)" << std::endl;
+#endif
                 return;
             }
             if (this->_using_unit_pos == this->_using_unit_size) {
                 if (!this->__flush()) {
+#ifdef DEBUG
+                    std::cout << this->_log_fd << " buf_instream: read interrupt" << std::endl;
+#endif
                     return;
                 }
             }
@@ -69,6 +85,9 @@ public:
             remain -= size;
             this->_using_unit_pos += size;
         }
+#ifdef DEBUG
+        std::cout << this->_log_fd << " bug_instream: read end" << std::endl;
+#endif
     }
 };
 
@@ -92,13 +111,15 @@ private:
 
     std::atomic<bool> _closed_flag;
     std::function<void ()> _close_callback;
+    int _log_fd;
 
     bool __flush();
 public:
     buf_outstream(std::size_t unit_size,
                   std::function<bool (std::uint8_t* s, std::size_t n)> sync_func,
                   std::function<void (rwg_http::buf_outstream&)> notify_func,
-                  std::function<void ()> close_callback);
+                  std::function<void ()> close_callback,
+                  int fd);
 
     void sync();
     void close();
@@ -110,7 +131,13 @@ public:
     void putc(std::uint8_t c);
 
     template<typename _T_Input_Itr> void write(_T_Input_Itr s, std::size_t n) {
+#ifdef DEBUG
+        std::cout << "buf_outstream: write begin" << std::endl;
+#endif
         if (this->_closed_flag) {
+#ifdef DEBUG
+            std::cout << "buf_outstream: write interrupt (closed)" << std::endl;
+#endif
             return;
         }
         std::size_t remain = n;
@@ -119,6 +146,9 @@ public:
         while (remain != 0) {
             if (this->_using_unit == nullptr || this->_using_unit_size == this->_unit_size) {
                 if (!this->__flush()) {
+#ifdef DEBUG
+                    std::cout << "buf_outstream: write interrupt" << std::endl;
+#endif
                     return;
                 }
             }
@@ -132,10 +162,16 @@ public:
 
             if (this->_using_unit_size == this->_unit_size) {
                 if (!this->__flush()) {
+#ifdef DEBUG
+                    std::cout << "buf_outstream: write interrupt" << std::endl;
+#endif
                     return;
                 }
             }
         }
+#ifdef DEBUG
+        std::cout << "buf_outstream: write end" << std::endl;
+#endif
     }
 };
 

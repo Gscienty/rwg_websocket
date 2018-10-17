@@ -8,6 +8,7 @@
 #include <functional>
 #include <utility>
 #include <list>
+#include <condition_variable>
 
 namespace rwg_http {
 
@@ -15,6 +16,7 @@ class buffer_pool {
 private:
     std::unique_ptr<std::uint8_t[]> _pool;
     std::mutex _pool_mtx;
+    std::condition_variable _usable_cond;
 
     std::list<std::pair<std::size_t, std::size_t>> _usable;
     std::list<std::pair<std::size_t, std::size_t>> _unusable;

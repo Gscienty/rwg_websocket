@@ -1,8 +1,10 @@
 #include "res.h"
 #include <unistd.h>
-#include <iostream>
 #include <errno.h>
 #include <string.h>
+#ifdef DEBUG
+#include <iostream>
+#endif
 
 rwg_http::res::res(int fd,
                    std::function<void (rwg_http::buf_outstream&)> notify_func,
@@ -14,7 +16,8 @@ rwg_http::res::res(int fd,
                      std::placeholders::_1,
                      std::placeholders::_2),
            notify_func,
-           close_callback)
+           close_callback,
+           fd)
     , _version("HTTP/1.1")
     , _status_code(200)
     , _description("OK")
@@ -22,6 +25,9 @@ rwg_http::res::res(int fd,
 }
 
 rwg_http::res::~res() {
+#ifdef DEBUG
+    std::cout << "res dtor" << std::endl;
+#endif
     this->release();
 }
 
@@ -45,6 +51,9 @@ static const std::string __crlf("\r\n");
 static const std::string __header_param_delimiter(": ");
 
 void rwg_http::res::write_header() {
+#ifdef DEBUG
+    std::cout << "res::write_header: begin" << std::endl;
+#endif
     // lazy method
     this->_str.write(this->_version.begin(), this->_version.size());
     this->_str.putc(' ');
@@ -61,30 +70,60 @@ void rwg_http::res::write_header() {
         this->_str.write(__crlf.begin(), __crlf.size());
     }
     this->_str.write(__crlf.begin(), __crlf.size());
+#ifdef DEBUG
+    std::cout << "res::write_header: end" << std::endl;
+#endif
 }
 
 bool rwg_http::res::__sync(std::uint8_t* s, std::size_t n) {
+#ifdef DEBUG
+    std::cout << "res::__sync: begin" << std::endl;
+#endif
     if (this->_close_flag) {
+#ifdef DEBUG
+        std::cout << "res::__sync: closed" << std::endl;
+#endif
         return false;
     }
     int size = ::write(this->_fd, s, n);
     if (size <= 0) {
+#ifdef DEBUG
+        std::cout << "res::__sync: size <= 0" << std::endl;
+#endif
         this->close();
         return false;
     }
+#ifdef DEBUG
+    std::cout << "res::__sync: end" << std::endl;
+#endif
     return true;
 }
 
 void rwg_http::res::close() {
+#ifdef DEBUG
+    std::cout << "res::close: begin" << std::endl;
+#endif
     if (this->_close_flag) {
+#ifdef DEBUG
+        std::cout << "res::close: closed" << std::endl;
+#endif
         return;
     }
     this->_str.close();
     this->_close_flag = true;
+#ifdef DEBUG
+    std::cout << "res::close: end" << std::endl;
+#endif
 }
 
 void rwg_http::res::flush() {
+#ifdef DEBUG
+    std::cout << "res::flush: begin" << std::endl;
+#endif
     this->_str.flush();
+#ifdef DEBUG
+    std::cout << "res::flush: end" << std::endl;
+#endif
 }
 
 void rwg_http::res::clear() {

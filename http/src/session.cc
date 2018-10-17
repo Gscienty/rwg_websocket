@@ -15,13 +15,18 @@ rwg_http::session::session(int fd,
     , _in_chain(false) {
 }
 
+rwg_http::session::~session() {
+#ifdef DEBUG
+    std::cout << "session dtor" << std::endl;
+#endif
+}
+
 void rwg_http::session::close() {
     if (this->_closed_flag) {
         return;
     }
+
     this->_closed_flag = true;
-    this->_req->release();
-    this->_res->release();
     this->_req->close();
     this->_res->close();
     this->_close_callback();
@@ -36,6 +41,9 @@ rwg_http::res& rwg_http::session::res() {
 }
 
 std::atomic<bool>& rwg_http::session::closed_flag() {
+    if ((this->_req->close_flag() || this->_res->close_flag()) && !this->_closed_flag) {
+        this->close();
+    }
     return this->_closed_flag;
 }
 

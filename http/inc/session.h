@@ -31,6 +31,7 @@ public:
             rwg_http::buffer_pool& pool,
             std::function<void (rwg_http::buf_outstream&)> need_outsync_func,
             std::function<void ()> close_callback);
+    virtual ~session();
 
     rwg_http::req& req();
     rwg_http::res& res();

@@ -1,5 +1,7 @@
 #include "buffer.h"
+#ifdef DEBUG
 #include <iostream>
+#endif
 
 rwg_http::buffer::buffer(std::function<void (std::list<std::pair<std::size_t, std::size_t>>::iterator)> recover,
                          std::size_t size,
@@ -36,10 +38,19 @@ rwg_http::buffer::~buffer() {
 }
 
 void rwg_http::buffer::recover() {
+#ifdef DEBUG
+    std::cout << "buffer::recover: begin" << std::endl;
+#endif
     if (this->_moved == false) {
+#ifdef DEBUG
+        std::cout << "buffer::recover: moved" << std::endl;
+#endif
         this->_moved = true;
         this->_recover(this->_pool_itr);
     }
+#ifdef DEBUG
+    std::cout << "buffer::recover: end" << std::endl;
+#endif
 }
 
 std::uint8_t& rwg_http::buffer::operator[] (const std::size_t pos) {

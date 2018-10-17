@@ -31,10 +31,10 @@ private:
     rwg_http::chain_middleware _chain;
 
     void __accept();
-    void __recv_data(rwg_http::session* sess);
+    void __recv_data(std::shared_ptr<rwg_http::session> sess);
     void __send_data(rwg_http::buf_outstream& out);
     void __close(int cfd);
-    void __execute_chain(rwg_http::session* sess);
+    void __execute_chain(std::shared_ptr<rwg_http::session> sess);
 public:
     server(int event_size);
     void init_buffer_pool(std::size_t pool_size);

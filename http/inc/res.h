@@ -49,6 +49,8 @@ public:
 
     void set_buffer(std::unique_ptr<rwg_http::buffer>&& buffer);
     void release();
+
+    std::atomic<bool>& close_flag() { return this->_close_flag; }
 };
 
 };
