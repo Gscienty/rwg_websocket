@@ -42,7 +42,9 @@ private:
             auto events_count = ::epoll_wait(epfd, events, this->_events_size, this->_ep_wait_timeout);
 #ifdef DEBUG
             if (events_count != -1) {
-                std::cout << "thread[" << epfd << "]: server received events: [" << events_count << ']' << std::endl;
+                if (events_count > 0) {
+                    std::cout << "thread[" << epfd << "]: server received events: [" << events_count << ']' << std::endl;
+                }
             }
             else {
                 std::cout << ::strerror(errno) << std::endl;
@@ -56,11 +58,11 @@ private:
 #ifdef DEBUG
                     std::cout << "fd[" << event.data.fd << "]: remote close" << std::endl;
 #endif
+                    close(event.data.fd);
                 }
                 else if (event.events & EPOLLIN) {
 #ifdef DEBUG
                     std::cout << "fd[" << event.data.fd << "]: epoll in" << std::endl;
-                    std::cout << event.data.ptr << std::endl;
 #endif
                     auto action_itr = this->_fd_in_events.find(event.data.fd);
                     if (action_itr != this->_fd_in_events.end()) {
