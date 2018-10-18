@@ -124,6 +124,12 @@ public:
         }
 #endif
     }
+
+    std::string& method() { return this->_method; }
+    std::string& uri() { return this->_uri; }
+    std::string& version() { return this->_version; }
+
+    std::map<std::string, std::string>& header_parameters() { return this->_header_parameters; }
 };
 
 }
