@@ -1,36 +1,19 @@
-#include "server.h"
-#include "staticfile_startup.h"
+#include "server.hpp"
+#include "staticfile_startup.hpp"
 #include <iostream>
 
 int main() {
-    rwg_http::server server(1);
-
-    server.init_buffer_pool(128);
-    server.init_thread_pool(2);
-
-    rwg_staticfile::startup staticfile("/static/", "./test/");
+    rwg_staticfile::startup staticfile("/static/", "./");
     staticfile.read_config("./mime.conf");
 
-    auto func = [] (rwg_http::session&) -> bool {
-        std::cout << "ACC" << std::endl;
-        return true;
+    rwg_web::server server(10, 10, 2000);
+    server.listen("127.0.0.1", 8088);
+
+    auto func = [&] (rwg_web::req& req, rwg_web::res& res) -> void {
+        staticfile.run(req, res);
     };
 
-    auto func_end = [] (rwg_http::session& session) -> bool {
-        session.close();
-        std::cout << "CLOSE\n";
-        return false;
-    };
-
-    server.chain().append(func);
-    server.chain().append_middleware(staticfile);
-    server.chain().append(func_end);
-
-    server.listen("0.0.0.0", 5000);
-#ifdef DEBUG
-    std::cout << "RUNNING\n";
-#endif
-    server.start(16, -1);
-
+    server.run(func);
+    server.start();
     return 0;
 }
