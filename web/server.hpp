@@ -140,7 +140,7 @@ public:
         ::epoll_ctl(this->_main_epfd, EPOLL_CTL_ADD, sfd, &this->ep_event());
     }
 
-    void run(std::function<void (rwg_web::req&, rwg_web::res&)> executor) {
+    void run(std::function<void (int fd, rwg_web::req&, rwg_web::res&)> executor) {
         this->_session.run(executor);
     }
 
