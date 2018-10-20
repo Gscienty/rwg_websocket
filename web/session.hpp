@@ -1,9 +1,9 @@
 #ifndef _RWG_WEB_SESSION_
 #define _RWG_WEB_SESSION_
 
-#include "abstract_in_event.hpp"
-#include "res.hpp"
-#include "req.hpp"
+#include "web/abstract_in_event.hpp"
+#include "web/res.hpp"
+#include "web/req.hpp"
 #include <functional>
 #ifdef DEBUG
 #include <iostream>

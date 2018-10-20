@@ -1,10 +1,10 @@
 #ifndef _RWG_WEB_SERVER_
 #define _RWG_WEB_SERVER_
 
-#include "abstract_in_event.hpp"
-#include "session.hpp"
-#include "req.hpp"
-#include "res.hpp"
+#include "web/abstract_in_event.hpp"
+#include "web/session.hpp"
+#include "web/req.hpp"
+#include "web/res.hpp"
 #include <thread>
 #include <sys/epoll.h>
 #include <unistd.h>
