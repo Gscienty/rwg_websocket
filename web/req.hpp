@@ -25,8 +25,8 @@ class req {
 private:
     int _fd;
     req_stat _stat;
-    const int _buf_size;
-    char * const _buf;
+    int _buf_size;
+    char * _buf;
     int _buf_avail_size;
     int _buf_pos;
     char *_raw;
@@ -92,17 +92,27 @@ private:
         }
     }
 public:
-    req(int fd, int size)
+    req(int fd)
         : _fd(fd)
         , _stat(req_stat_header) 
-        , _buf_size(size)
-        , _buf(new char[size])
+        , _buf_size(0)
+        , _buf(nullptr)
         , _buf_avail_size(0)
         , _raw(nullptr) {
     }
 
     virtual ~req() {
         delete [] this->_buf;
+    }
+
+    void alloc_buf(int size) {
+        if (this->_buf != nullptr) {
+            delete [] this->_buf;
+        }
+
+        this->_buf_size = size;
+        this->_buf = new char[size];
+        this->_buf_avail_size = 0;
     }
 
     void load() {

@@ -18,9 +18,9 @@ private:
     std::string _description;
     std::map<std::string, std::string> _header_parameters;
 
-    char * const _buf;
+    char * _buf;
     int _buf_pos;
-    const int _buf_size;
+    int _buf_size;
 
     void __putc(char c) {
         if (this->_buf_pos == this->_buf_size) {
@@ -32,15 +32,25 @@ private:
         }
     }
 public:
-    res(int fd, int size)
+    res(int fd)
         : _fd(fd)
-        , _buf(new char[size])
+        , _buf(nullptr)
         , _buf_pos(0)
-        , _buf_size(size) {
+        , _buf_size(0) {
     }
 
     virtual ~res() {
         delete [] this->_buf;
+    }
+
+    void alloc_buf(int size) {
+        if (this->_buf != nullptr) {
+            delete [] this->_buf;
+        }
+
+        this->_buf = new char[size];
+        this->_buf_pos = 0;
+        this->_buf_size = size;
     }
 
     std::string& version() { return this->_version; }
