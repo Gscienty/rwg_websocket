@@ -1,9 +1,9 @@
 #ifndef _RWG_STATICFILE_STARTUP_
 #define _RWG_STATICFILE_STARTUP_
 
-#include "mime.hpp"
-#include "req.hpp"
-#include "res.hpp"
+#include "staticfile/mime.hpp"
+#include "web/req.hpp"
+#include "web/res.hpp"
 #include <string>
 #include <unistd.h>
 #include <fcntl.h>
