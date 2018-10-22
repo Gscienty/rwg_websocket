@@ -138,6 +138,7 @@ public:
     std::string& method() { return this->_method; }
     std::string& uri() { return this->_uri; }
     std::string& version() { return this->_version; }
+    int fd() { return this->_fd; }
 
     std::map<std::string, std::string>& header_parameters() { return this->_header_parameters; }
 };

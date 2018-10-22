@@ -57,6 +57,7 @@ public:
     short& status_code() { return this->_status_code; }
     std::string& description() { return this->_description; }
     std::map<std::string, std::string>& header_parameters() { return this->_header_parameters; }
+    int fd() { return this->_fd; }
 
     void write_header() {
         for (auto c : this->_version) { this->__putc(c); }
