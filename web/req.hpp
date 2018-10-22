@@ -38,6 +38,9 @@ private:
     std::map<std::string, std::string> _header_parameters;
 
     void __parse_header() {
+#ifdef DEBUG
+        std::cout << "request parse header" << std::endl;
+#endif
         int stat = 0;
         int hp_stat = 0;
         std::stringstream sstr;
@@ -113,6 +116,7 @@ public:
         this->_buf_size = size;
         this->_buf = new char[size];
         this->_buf_avail_size = 0;
+        this->_buf_pos = 0;
     }
 
     void load() {
