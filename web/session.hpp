@@ -13,7 +13,7 @@ namespace rwg_web {
 
 class session : public rwg_web::abstract_in_event {
 private:
-    std::function<void (int, rwg_web::req&, rwg_web::res&)> _executor;
+    std::function<void (rwg_web::req&, rwg_web::res&)> _executor;
 public:
     virtual void in_event(int fd) override {
 #ifdef DEBUG
@@ -22,12 +22,14 @@ public:
         rwg_web::req req(fd);
         rwg_web::res res(fd);
         if (bool(this->_executor)) {
-            this->_executor(fd, req, res);
-            res.flush();
+#ifdef DEBUG
+            std::cout << "execute action" << std::endl;
+#endif
+            this->_executor(req, res);
         }
     }
 
-    void run(std::function<void (int fd, rwg_web::req&, rwg_web::res&)> executor) {
+    void run(std::function<void (rwg_web::req&, rwg_web::res&)> executor) {
         this->_executor = executor;
     }
 };
