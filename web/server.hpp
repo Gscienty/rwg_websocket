@@ -32,6 +32,7 @@ private:
     int _main_epfd;
     std::map<int, rwg_web::abstract_in_event *> _fd_in_events;
     std::map<int, ::epoll_event> _events;
+    std::function<void (int)> _close_func;
 
     rwg_web::session _session;
     bool _shutdown;
@@ -59,6 +60,10 @@ private:
                     std::cout << "fd[" << event.data.fd << "]: remote close" << std::endl;
 #endif
                     close(event.data.fd);
+
+                    if (bool(this->_close_func)) {
+                        this->_close_func(event.data.fd);
+                    }
                 }
                 else if (event.events & EPOLLIN) {
 #ifdef DEBUG
@@ -66,7 +71,15 @@ private:
 #endif
                     auto action_itr = this->_fd_in_events.find(event.data.fd);
                     if (action_itr != this->_fd_in_events.end()) {
+#ifdef DEBUG
+                        std::cout << "find action" << std::endl;
+#endif
                         action_itr->second->in_event(event.data.fd);
+                    }
+                    else {
+#ifdef DEBUG
+                        std::cout << "cannot find action" << std::endl;
+#endif
                     }
                 }
 
@@ -140,12 +153,16 @@ public:
         ::epoll_ctl(this->_main_epfd, EPOLL_CTL_ADD, sfd, &this->ep_event());
     }
 
-    void run(std::function<void (int fd, rwg_web::req&, rwg_web::res&)> executor) {
+    void run(std::function<void (rwg_web::req&, rwg_web::res&)> executor) {
         this->_session.run(executor);
     }
 
     void start() {
         this->__thread_main(this->_main_epfd);
+    }
+
+    void close_handle(std::function<void (int)> func) {
+        this->_close_func = func;
     }
 };
 
