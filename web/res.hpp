@@ -4,6 +4,9 @@
 #include <string>
 #include <map>
 #include <unistd.h>
+#ifdef DEBUG
+#include <iostream>
+#endif
 
 namespace rwg_web {
 
@@ -90,6 +93,9 @@ public:
         }
         ::write(this->_fd, this->_buf, this->_buf_pos);
         this->_buf_pos = 0;
+#ifdef DEBUG
+        std::cout << "response flush" << std::endl;
+#endif
     }
 };
 
