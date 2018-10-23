@@ -5,6 +5,9 @@
 #include <cstdint>
 #include <string>
 #include <unistd.h>
+#ifdef DEBUG
+#include <iostream>
+#endif
 
 namespace rwg_websocket {
 
@@ -15,7 +18,7 @@ private:
     rwg_websocket::op _opcode;
     bool _mask;
     std::basic_string<std::uint8_t> _payload;
-    std::uint32_t _masking_key;
+    std::basic_string<std::uint8_t> _masking_key;
     
     std::uint8_t __read_byte() {
         std::uint8_t c;
@@ -31,14 +34,14 @@ public:
     rwg_websocket::op& opcode() { return this->_opcode; }
     bool& mask() { return this->_mask; }
     std::basic_string<std::uint8_t>& payload() { return this->_payload; }
-    std::uint32_t& masking_key() { return this->_masking_key; }
+    std::basic_string<std::uint8_t>& masking_key() { return this->_masking_key; }
 
     void write() {
         std::uint8_t c = 0x00;
         if (this->_fin_flag) {
-            c |= 0x01;
+            c |= 0x80;
         }
-        c |= this->_opcode << 4;
+        c |= this->_opcode;
         ::write(this->_fd, &c, 1);
 
         c = 0x00;
@@ -76,14 +79,7 @@ public:
         }
 
         if (this->_mask) {
-            std::uint8_t cs[4];
-
-            cs[0] = (this->_masking_key & 0xFF000000) >> 24;
-            cs[1] = (this->_masking_key & 0x00FF0000) >> 16;
-            cs[2] = (this->_masking_key & 0x0000FF00) >> 8;
-            cs[3] = (this->_masking_key & 0x000000FF);
-
-            ::write(this->_fd, cs, 4);
+            ::write(this->_fd, this->_masking_key.data(), 4);
         }
 
         ::write(this->_fd, this->_payload.data(), this->_payload.size());
@@ -94,23 +90,26 @@ public:
         std::cout << "websocket frame parsing" << std::endl;
 #endif
         std::uint8_t c = this->__read_byte();
-        if ((c & 0x01) != 0) {
+        if ((c & 0x80) != 0) {
             this->_fin_flag = true;
         }
         else {
             this->_fin_flag = false;
         }
-        this->_opcode = static_cast<rwg_websocket::op>((c & 0xF0) >> 4);
+#ifdef DEBUG
+        std::cout << "fin flag: " << this->_fin_flag << std::endl;
+#endif
+        this->_opcode = static_cast<rwg_websocket::op>(c & 0x0F);
 
         c = this->__read_byte();
-        if ((c & 0x01) != 0) {
+        if ((c & 0x80) != 0) {
             this->_mask = true;
         }
         else {
             this->_mask = false;
         }
 
-        std::uint64_t payload_len = (c & 0xFE) >> 1;
+        std::uint64_t payload_len = (c & 0x7F);
         if (payload_len == 126) {
             std::uint8_t c1 = this->__read_byte();
             std::uint8_t c2 = this->__read_byte();
@@ -133,20 +132,21 @@ public:
                 (static_cast<std::uint64_t>(cs[7]));
         }
 
-        if (this->_mask) {
-            std::uint8_t cs[4];
-            for (auto i = 0; i < 4; i++) {
-                cs[i] = this->__read_byte();
-            }
+#ifdef DEBUG
+        std::cout << "websocket frame payload length:" << payload_len << std::endl;
+#endif
 
-            this->_masking_key = (static_cast<std::uint32_t>(cs[0]) << 24) |
-                (static_cast<std::uint32_t>(cs[1]) << 16) |
-                (static_cast<std::uint32_t>(cs[2]) << 8) |
-                (static_cast<std::uint32_t>(cs[3]));
+        this->_masking_key.resize(4, 0);
+        if (this->_mask) {
+            for (auto i = 0; i < 4; i++) {
+                this->_masking_key[i] = this->__read_byte();
+            }
         }
 
         this->_payload.resize(payload_len);
-        ::read(this->_fd, const_cast<std::uint8_t *>(this->_payload.data()), payload_len);
+        for (auto i = 0UL; i < payload_len; i++) {
+            this->_payload[i] = this->__read_byte() ^ (this->_masking_key[i % 4]);
+        }
     }
 };
 
