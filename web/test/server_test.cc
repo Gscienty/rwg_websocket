@@ -28,7 +28,7 @@ int main() {
         res.write(html.begin(), html.end());
         res.flush();
     };
-    server.run(exec);
+    server.http_handle(exec);
     server.start();
 
     return 0;
