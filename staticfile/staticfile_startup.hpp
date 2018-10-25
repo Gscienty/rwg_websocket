@@ -8,6 +8,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#ifdef DEBUG
+#include <iostream>
+#endif
 
 namespace rwg_staticfile {
 
@@ -59,11 +62,17 @@ public:
 
     bool run(rwg_web::req& req, rwg_web::res& res) {
         if (req.uri().find(this->_start) != 0) {
+#ifdef DEBUG
+            std::cout << "staticfile startup not match start" << std::endl;
+#endif
             return false;
         }
 
         std::string realpath = this->__realpath(req.uri());
         if (::access(realpath.c_str(), F_OK) != 0 || ::access(realpath.c_str(), R_OK) != 0) {
+#ifdef DEBUG
+            std::cout << "staticfile not found" << std::endl;
+#endif
             this->__notfound(req, res);
             return true;
         }
