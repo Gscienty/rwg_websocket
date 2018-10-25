@@ -8,6 +8,12 @@ namespace rwg_web {
 class event {
     ::epoll_event _event;
 public:
+    event() {
+        this->_event.events = EPOLLIN | EPOLLET | EPOLLRDHUP; 
+    }
+    virtual ~event() {
+
+    } 
     ::epoll_event& ep_event() { return this->_event; }
 };
 
