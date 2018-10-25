@@ -2,9 +2,11 @@
 #define _RWG_WEB_SERVER_
 
 #include "web/abstract_in_event.hpp"
-#include "web/session.hpp"
+#include "web/http_ctx.hpp"
 #include "web/req.hpp"
 #include "web/res.hpp"
+#include "web/ctx.hpp"
+#include "websocket/websocket_startup.hpp"
 #include <thread>
 #include <sys/epoll.h>
 #include <unistd.h>
@@ -15,6 +17,7 @@
 #include <arpa/inet.h>
 #include <csignal>
 #include <errno.h>
+#include <fcntl.h>
 #include <string.h>
 #include <map>
 
@@ -32,10 +35,24 @@ private:
     int _main_epfd;
     std::map<int, rwg_web::abstract_in_event *> _fd_in_events;
     std::map<int, ::epoll_event> _events;
-    std::function<void (int)> _close_func;
+    std::function<void (int)> _close_cb;
+    std::function<void (rwg_web::req&, rwg_web::res&)> _http_handler;
+    rwg_websocket::startup _websocket;
 
-    rwg_web::session _session;
-    bool _shutdown;
+    void __close(::epoll_event& event) {
+#ifdef DEBUG
+        std::cout << "close event" << std::endl;
+#endif
+        if (bool(this->_close_cb)) {
+            this->_close_cb(event.data.fd);
+        }
+        close(event.data.fd);
+        auto itr = this->_fd_in_events.find(event.data.fd);
+        if (itr != this->_fd_in_events.end()) {
+            delete itr->second;
+            this->_fd_in_events.erase(itr);
+        }
+    }
 
     void __thread_main(const int epfd) {
         ::epoll_event events[this->_events_size];
@@ -59,11 +76,7 @@ private:
 #ifdef DEBUG
                     std::cout << "fd[" << event.data.fd << "]: remote close" << std::endl;
 #endif
-                    close(event.data.fd);
-
-                    if (bool(this->_close_func)) {
-                        this->_close_func(event.data.fd);
-                    }
+                    this->__close(event);
                 }
                 else if (event.events & EPOLLIN) {
 #ifdef DEBUG
@@ -82,7 +95,6 @@ private:
 #endif
                     }
                 }
-
             }
         }
     }
@@ -93,8 +105,7 @@ public:
         , _epsize(epsize)
         , _events_size(events_size)
         , _ep_wait_timeout(ep_wait_timeout)
-        , _loop_itr(0)
-        , _shutdown(false) {
+        , _loop_itr(0) {
         
         this->_main_epfd = ::epoll_create(this->_epsize);
 
@@ -113,6 +124,14 @@ public:
         ::sockaddr_in c_addr;
         ::socklen_t c_addr_len;
         int c_fd = ::accept(fd, reinterpret_cast<::sockaddr *>(&c_addr), &c_addr_len);
+
+        // set nonblock
+        int flags = ::fcntl(c_fd, F_GETFL);
+        if (flags == -1) {
+            flags = 0;
+        }
+        ::fcntl(c_fd, flags | O_NONBLOCK);
+
         int epfd = this->_eps[this->_loop_itr];
         this->_loop_itr = (this->_loop_itr + 1) % this->_eps.size();
 
@@ -120,14 +139,13 @@ public:
         std::cout << "remote IP: [" << c_addr.sin_addr.s_addr << "]; port: [" << c_addr.sin_port << "]; client[" << c_fd << "] added to epoll[" << epfd << "]" << std::endl;
 #endif
 
-        ::epoll_event event;
-        event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
-        event.data.ptr = NULL;
-        event.data.fd = c_fd;
+        auto ctx = new rwg_web::ctx(this->_http_handler,
+                                    this->_websocket,
+                                    std::bind(&rwg_web::server::__close, this, std::placeholders::_1));
+        ctx->ep_event().data.fd = c_fd;
 
-        this->_fd_in_events[c_fd] = &this->_session;
-
-        ::epoll_ctl(epfd, EPOLL_CTL_ADD, c_fd, &event);
+        this->_fd_in_events[c_fd] = ctx;
+        ::epoll_ctl(epfd, EPOLL_CTL_ADD, c_fd, &ctx->ep_event());
     }
 
     void listen(std::string ip, short port) {
@@ -144,8 +162,7 @@ public:
         ::bind(sfd, reinterpret_cast<::sockaddr *>(&s_addr), sizeof(::sockaddr_in));
         ::listen(sfd, this->_procs_count * this->_epsize);
 
-        this->ep_event().events = EPOLLIN | EPOLLET;
-        this->ep_event().data.ptr = this;
+        this->ep_event().events = EPOLLIN;
         this->ep_event().data.fd = sfd;
 
         this->_fd_in_events[sfd] = this;
@@ -153,8 +170,12 @@ public:
         ::epoll_ctl(this->_main_epfd, EPOLL_CTL_ADD, sfd, &this->ep_event());
     }
 
-    void run(std::function<void (rwg_web::req&, rwg_web::res&)> executor) {
-        this->_session.run(executor);
+    void http_handle(std::function<void (rwg_web::req&, rwg_web::res&)> handler) {
+        this->_http_handler = handler;
+    }
+
+    void websocket_heandle(std::function<void (rwg_websocket::frame&)> handler) {
+        this->_websocket.handle(handler);
     }
 
     void start() {
@@ -162,7 +183,7 @@ public:
     }
 
     void close_handle(std::function<void (int)> func) {
-        this->_close_func = func;
+        this->_close_cb = func;
     }
 };
 
