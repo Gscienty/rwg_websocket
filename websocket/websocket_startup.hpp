@@ -125,7 +125,7 @@ public:
         return this->_websocks.find(fd) != this->_websocks.end();
     }
 
-    void set_handle(std::function<void (rwg_websocket::frame&)> func) {
+    void handle(std::function<void (rwg_websocket::frame&)> func) {
         this->_func = func;
     }
 
