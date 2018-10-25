@@ -35,6 +35,7 @@ public:
     bool& mask() { return this->_mask; }
     std::basic_string<std::uint8_t>& payload() { return this->_payload; }
     std::basic_string<std::uint8_t>& masking_key() { return this->_masking_key; }
+    int& fd() { return this->_fd; }
 
     void write() {
         std::uint8_t c = 0x00;
@@ -80,6 +81,10 @@ public:
 
         if (this->_mask) {
             ::write(this->_fd, this->_masking_key.data(), 4);
+        }
+
+        for (auto i = 0UL; i < this->_payload.size(); i++) {
+            this->_payload[i] ^= this->_masking_key[i % 4];
         }
 
         ::write(this->_fd, this->_payload.data(), this->_payload.size());
