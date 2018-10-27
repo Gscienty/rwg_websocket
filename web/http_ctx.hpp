@@ -17,21 +17,18 @@ private:
     rwg_websocket::startup &_websocket;
 
     std::function<void (rwg_web::req&, rwg_web::res&)> _http_handler;
-    std::function<void ()>_close_cb;
     rwg_web::req _req;
     rwg_web::res _res;
 public:
     http_ctx(rwg_websocket::startup &websocket,
-             std::function<void (rwg_web::req& req, rwg_web::res&)> handler,
-             std::function<void ()> close_cb)
+             std::function<void (rwg_web::req& req, rwg_web::res&)> handler)
         : _websocket(websocket)
-        , _http_handler(handler)
-        , _close_cb(close_cb) {}
+        , _http_handler(handler) {}
 
     rwg_web::req& req() { return this->_req; }
     rwg_web::res& res() { return this->_res; }
 
-    void execute(int fd) {
+    void run(int fd, std::function<void ()> close_cb) {
 #ifdef DEBUG
         std::cout << "session received message" << std::endl;
 #endif
@@ -45,7 +42,7 @@ public:
             this->_req.parse();
             if (this->_req.stat() == rwg_web::req_stat::req_stat_err ||
                 this->_req.stat() == rwg_web::req_stat::req_stat_interrupt) {
-                this->close();
+                close_cb();
             }
             else if (this->_req.stat() == rwg_web::req_stat::req_stat_header_end) {
 #ifdef DEBUG
@@ -66,10 +63,6 @@ public:
     }
 
     virtual ~http_ctx() {
-    }
-
-    void close() {
-        this->_close_cb();
     }
 };
 
