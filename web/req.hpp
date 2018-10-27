@@ -256,6 +256,10 @@ public:
         }
         this->_raw_len = 0;
         this->_raw_readed_len = 0;
+        this->_method.clear();
+        this->_uri.clear();
+        this->_version.clear();
+        this->_header_parameters.clear();
     }
 
     int& fd() { return this->_fd; }
