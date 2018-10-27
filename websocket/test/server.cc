@@ -7,7 +7,7 @@
 #include <iostream>
 
 int main() {
-    auto websock_handle = [] (rwg_websocket::frame &frame) -> void {
+    auto websock_handle = [] (rwg_websocket::frame &frame, std::function<void ()>) -> void {
         std::string val(frame.payload().begin(), frame.payload().end());
         std::cout << val << std::endl;
     };
@@ -21,7 +21,7 @@ int main() {
     rwg_web::server server(10, 10, 2000);
     server.listen("0.0.0.0", 5000);
 
-    auto web_handle = [&] (rwg_web::req& req, rwg_web::res& res) -> void {
+    auto web_handle = [&] (rwg_web::req& req, rwg_web::res& res, std::function<void ()>) -> void {
         default_startup.run(req, res);
 
         if (staticfile.run(req, res)) {
@@ -32,7 +32,8 @@ int main() {
     };
 
     server.http_handle(web_handle);
-    server.websocket_heandle(websock_handle);
+    server.websocket_handshake_handle([] (rwg_web::req&) -> bool { return true; });
+    server.websocket_handle(websock_handle);
 
     server.start();
 
