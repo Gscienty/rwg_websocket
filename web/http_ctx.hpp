@@ -44,11 +44,10 @@ public:
                 this->_req.stat() == rwg_web::req_stat::req_stat_interrupt) {
                 close_cb();
             }
-            else if (this->_req.stat() == rwg_web::req_stat::req_stat_header_end) {
+            else if (this->_req.stat() == rwg_web::req_stat::req_stat_end) {
 #ifdef DEBUG
                 std::cout << "execute start http_ctx run handle" << std::endl;
 #endif
-
                 this->_res.alloc_buf(512);
                 if (!this->_websocket.handshake(this->_req, this->_res)) {
 #ifdef DEBUG
@@ -57,6 +56,9 @@ public:
                     this->_http_handler(this->_req, this->_res);
                 }
                 this->_res.free_buf();
+
+                this->_req.reset();
+                this->_res.reset();
             }
             this->_req.free_buf();
         }
