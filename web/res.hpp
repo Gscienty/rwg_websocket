@@ -44,7 +44,7 @@ public:
     }
 
     virtual ~res() {
-        delete [] this->_buf;
+        this->free_buf();
     }
 
     int& fd() { return this->_fd; }
