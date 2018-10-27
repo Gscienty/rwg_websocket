@@ -54,7 +54,7 @@ private:
         if (ret == 0) {
             this->_stat = rwg_websocket::fpstat_interrupt;
         }
-        if (ret == EAGAIN) {
+        if (ret == -1) {
             this->_stat = rwg_websocket::fpstat_next;
         }
         return c;
@@ -156,6 +156,9 @@ public:
                 this->_stat == rwg_websocket::fpstat_err ||
                 this->_stat == rwg_websocket::fpstat_end ||
                 this->_stat == rwg_websocket::fpstat_next) {
+#ifdef DEBUG
+                std::cout << "websocket farame parsing need next" << std::endl;
+#endif
                 break;
             }
 
@@ -280,45 +283,6 @@ public:
                 break;
             }
         }
-
-/*         c = this->__read_byte(); */
-/*         if (payload_len == 126) { */
-/*             std::uint8_t c1 = this->__read_byte(); */
-/*             std::uint8_t c2 = this->__read_byte(); */
-
-/*             payload_len = (static_cast<std::uint64_t>(c1) << 8) | (static_cast<std::uint64_t>(c2)); */
-/*         } */
-/*         else if (payload_len == 127) { */
-/*             std::uint8_t cs[8]; */
-/*             for (auto i = 0; i < 8; i++) { */
-/*                 cs[i] = this->__read_byte(); */
-/*             } */
-
-/*             payload_len = (static_cast<std::uint64_t>(cs[0]) << 56) | */
-/*                 (static_cast<std::uint64_t>(cs[1]) << 48) | */
-/*                 (static_cast<std::uint64_t>(cs[2]) << 40) | */
-/*                 (static_cast<std::uint64_t>(cs[3]) << 32) | */
-/*                 (static_cast<std::uint64_t>(cs[4]) << 24) | */
-/*                 (static_cast<std::uint64_t>(cs[5]) << 16) | */
-/*                 (static_cast<std::uint64_t>(cs[6]) << 8) | */
-/*                 (static_cast<std::uint64_t>(cs[7])); */
-/*         } */
-
-/* #ifdef DEBUG */
-/*         std::cout << "websocket frame payload length:" << payload_len << std::endl; */
-/* #endif */
-
-/*         this->_masking_key.resize(4, 0); */
-/*         if (this->_mask) { */
-/*             for (auto i = 0; i < 4; i++) { */
-/*                 this->_masking_key[i] = this->__read_byte(); */
-/*             } */
-/*         } */
-
-/*         this->_payload.resize(payload_len); */
-/*         for (auto i = 0UL; i < payload_len; i++) { */
-/*             this->_payload[i] = this->__read_byte() ^ (this->_masking_key[i % 4]); */
-/*         } */
     }
 };
 

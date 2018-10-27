@@ -16,12 +16,12 @@ class http_ctx {
 private:
     rwg_websocket::startup &_websocket;
 
-    std::function<void (rwg_web::req&, rwg_web::res&)> _http_handler;
+    std::function<void (rwg_web::req&, rwg_web::res&, std::function<void ()>)> _http_handler;
     rwg_web::req _req;
     rwg_web::res _res;
 public:
     http_ctx(rwg_websocket::startup &websocket,
-             std::function<void (rwg_web::req& req, rwg_web::res&)> handler)
+             std::function<void (rwg_web::req& req, rwg_web::res&, std::function<void ()>)> handler)
         : _websocket(websocket)
         , _http_handler(handler) {}
 
@@ -49,11 +49,11 @@ public:
                 std::cout << "execute start http_ctx run handle" << std::endl;
 #endif
                 this->_res.alloc_buf(512);
-                if (!this->_websocket.handshake(this->_req, this->_res)) {
+                if (!this->_websocket.handshake(this->_req, this->_res, close_cb)) {
 #ifdef DEBUG
                     std::cout << "normal http" << std::endl;
 #endif
-                    this->_http_handler(this->_req, this->_res);
+                    this->_http_handler(this->_req, this->_res, close_cb);
                 }
                 this->_res.free_buf();
 
