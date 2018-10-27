@@ -319,6 +319,8 @@ public:
     std::string& method() { return this->_method; }
     std::string& uri() { return this->_uri; }
     std::string& version() { return this->_version; }
+    char* raw() const { return this->_raw; }
+    std::uint64_t raw_len() const { return this->_raw_len; }
 
     std::map<std::string, std::string>& header_parameters() { return this->_header_parameters; }
 };
