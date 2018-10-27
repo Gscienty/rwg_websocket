@@ -14,25 +14,33 @@ private:
     rwg_web::http_ctx _http_ctx;
     rwg_websocket::startup &_websocket;
     std::function<void (int)>_close_cb;
+    bool _close_flag;
 
+    void __close() {
+        this->_close_flag = true;
+    }
 public:
-    ctx(std::function<void (rwg_web::req&, rwg_web::res&)> http_handler,
+    ctx(std::function<void (rwg_web::req&, rwg_web::res&, std::function<void ()>)> http_handler,
         rwg_websocket::startup &websocket,
         std::function<void (int)> close_cb)
         : _http_ctx(websocket, http_handler) 
         , _websocket(websocket)
-        , _close_cb(close_cb) {}
+        , _close_cb(close_cb)
+        , _close_flag(false) {}
 
     virtual ~ctx() {
-
     }
 
     virtual void in_event() override {
         if (this->_websocket.is_websocket(this->ep_event().data.fd)) {
-            this->_websocket.run(this->ep_event().data.fd, std::bind(&rwg_web::ctx::close, this));
+            this->_websocket.run(this->ep_event().data.fd, std::bind(&rwg_web::ctx::__close, this));
         }
         else {
-            this->_http_ctx.run(this->ep_event().data.fd, std::bind(&rwg_web::ctx::close, this));
+            this->_http_ctx.run(this->ep_event().data.fd, std::bind(&rwg_web::ctx::__close, this));
+        }
+
+        if (this->_close_flag) {
+            this->close();
         }
     }
 
