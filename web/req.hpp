@@ -35,15 +35,37 @@ private:
     req_stat _stat;
     int _buf_size;
     char * _buf;
-    int _buf_avail_size;
-    int _buf_pos;
+    std::uint64_t _buf_avail_size;
+    std::uint64_t _buf_pos;
     char *_raw;
+    std::uint64_t _raw_len;
+    std::uint64_t _raw_readed_len;
 
     std::string _method;
     std::string _uri;
     std::string _version;
 
     std::map<std::string, std::string> _header_parameters;
+
+    void __load() {
+#ifdef DEBUG
+        std::cout << "req load data" << std::endl;
+#endif
+        this->_buf_pos = 0;
+        ::ssize_t ret = ::read(this->_fd, this->_buf, this->_buf_size);
+        if (ret <= 0) {
+            this->_buf_avail_size = 0;
+            if (ret == 0) {
+                this->_stat = rwg_web::req_stat::req_stat_interrupt;
+            }
+            else if (ret != EAGAIN) {
+                this->_stat = rwg_web::req_stat::req_stat_err;
+            }
+            return;
+        }
+
+        this->_buf_avail_size = ret;
+    }
 
     void __parse_header() {
 #ifdef DEBUG
@@ -65,7 +87,7 @@ private:
                this->_stat != rwg_web::req_stat::req_stat_header_end &&
                this->_stat != rwg_web::req_stat::req_stat_err) {
             if (this->_buf_pos == this->_buf_avail_size) {
-                this->load();
+                this->__load();
                 if (this->_stat == rwg_web::req_stat::req_stat_interrupt ||
                     this->_stat == rwg_web::req_stat::req_stat_err) {
                     break;
@@ -178,6 +200,34 @@ private:
             }
         }
     }
+
+    void __parse_raw() {
+        if (this->_raw_len == this->_raw_readed_len) {
+            this->_stat = rwg_web::req_stat::req_stat_end;
+            return;
+        }
+
+        while (this->_raw_readed_len < this->_raw_len) {
+            if (this->_buf_pos == this->_buf_avail_size) {
+                this->__load();
+                if (this->_stat == rwg_web::req_stat::req_stat_interrupt ||
+                    this->_stat == rwg_web::req_stat::req_stat_err) {
+                    return;
+                }
+            }
+            std::uint64_t readable_len = std::min(this->_buf_avail_size - this->_buf_pos,
+                                                  this->_raw_len - this->_raw_readed_len);
+
+            std::copy(this->_buf + this->_buf_pos,
+                      this->_buf + this->_buf_pos + readable_len,
+                      this->_raw + this->_raw_readed_len);
+
+            this->_buf_pos += readable_len;
+            this->_raw_readed_len += readable_len;
+        }
+        
+        this->_stat = rwg_web::req_stat::req_stat_end;
+    }
 public:
     req()
         : _fd(0)
@@ -185,11 +235,27 @@ public:
         , _buf_size(0)
         , _buf(nullptr)
         , _buf_avail_size(0)
-        , _raw(nullptr) {
+        , _raw(nullptr)
+        , _raw_len(0)
+        , _raw_readed_len(0) {
     }
 
     virtual ~req() {
         this->free_buf();
+        if (this->_raw != nullptr) {
+            delete [] this->_raw;
+        }
+    }
+
+    void reset() {
+        this->_fd = 0;
+        this->_stat = rwg_web::req_stat::req_stat_header_method;
+        if (this->_raw != nullptr) {
+            delete [] this->_raw;
+            this->_raw = nullptr;
+        }
+        this->_raw_len = 0;
+        this->_raw_readed_len = 0;
     }
 
     int& fd() { return this->_fd; }
@@ -215,29 +281,14 @@ public:
         this->_buf_pos = 0;
     }
 
-    void load() {
-#ifdef DEBUG
-        std::cout << "req load data" << std::endl;
-#endif
-        this->_buf_pos = 0;
-        ::ssize_t ret = ::read(this->_fd, this->_buf, this->_buf_size);
-        if (ret <= 0) {
-            this->_buf_avail_size = 0;
-            if (ret == 0) {
-                this->_stat = rwg_web::req_stat::req_stat_interrupt;
-            }
-            else if (ret != EAGAIN) {
-                this->_stat = rwg_web::req_stat::req_stat_err;
-            }
-            return;
-        }
-
-        this->_buf_avail_size = ret;
-    }
 
     rwg_web::req_stat stat() const { return this->_stat; }
 
     void parse() {
+        if (this->_stat == rwg_web::req_stat::req_stat_raw) {
+            this->__parse_raw();
+            return;
+        }
         this->__parse_header();
 #ifdef DEBUG
         std::cout << "receive http req:" << std::endl;
@@ -247,6 +298,18 @@ public:
             std::cout << kv.first << ": " << kv.second << std::endl;
         }
 #endif
+        if (this->_stat == rwg_web::req_stat::req_stat_header_end) {
+            auto len_itr = this->_header_parameters.find("Content-Length");
+            if (len_itr != this->_header_parameters.end()) {
+                this->_stat = rwg_web::req_stat::req_stat_raw;
+                this->_raw_len = std::stoul(len_itr->second);
+                this->_raw_readed_len = 0;
+                this->__parse_raw();
+            }
+            else {
+                this->_stat = rwg_web::req_stat::req_stat_end;
+            }
+        }
     }
 
     std::string& method() { return this->_method; }

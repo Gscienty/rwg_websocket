@@ -47,6 +47,13 @@ public:
         this->free_buf();
     }
 
+    void reset() {
+        this->_version.clear();
+        this->_status_code = 0;
+        this->_description.clear();
+        this->_header_parameters.clear();
+    }
+
     int& fd() { return this->_fd; }
 
     void alloc_buf(int size) {
