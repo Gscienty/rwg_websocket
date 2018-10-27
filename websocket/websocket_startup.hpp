@@ -21,6 +21,7 @@ class startup {
 private:
     std::map<int, std::map<std::string, std::string>> _websocks;
     std::function<void (rwg_websocket::frame& frame)> _func;
+    rwg_websocket::frame _frame;
 
     bool __is_websocket_handshake(rwg_web::req& req) {
         auto upgrade = req.header_parameters().find("Upgrade");
@@ -55,15 +56,51 @@ private:
     }
 
 public:
-    void run(int fd) {
+    void run(int fd, std::function<void ()> close_cb) {
 #ifdef DEBUG
         std::cout << "websocket startup" << std::endl;
 #endif
-        rwg_websocket::frame frame(fd);
-        frame.parse();
+        if (this->_frame.fd() != fd) {
+#ifdef DEBUG
+            std::cout << "websocket frame origin fd differ current fd" << std::endl;
+#endif
+            this->_frame.fd() = fd;
+        }
 
-        if (bool(this->_func)) {
-            this->_func(frame);
+        bool do_next = true;
+        while (do_next && this->_frame.stat() != rwg_websocket::fpstat_interrupt && this->_frame.stat() != rwg_websocket::fpstat_err) {
+            rwg_websocket::frame_parse_stat remember_stat = this->_frame.stat();
+
+            this->_frame.parse();
+
+            switch (this->_frame.stat()) {
+            case rwg_websocket::fpstat_end:
+                if (bool(this->_func)) {
+                    this->_func(this->_frame);
+                }
+                this->_frame.reset();
+                break;
+            case rwg_websocket::fpstat_next:
+                this->_frame.stat() = remember_stat;
+                do_next = false;
+                break;
+            case rwg_websocket::fpstat_err:
+#ifdef DEBUG
+                std::cout << "websocket parse error" << std::endl;
+#endif
+                do_next = false;
+                close_cb();
+                break;
+            case rwg_websocket::fpstat_interrupt:
+#ifdef DEBUG
+                std::cout << "websocket interrupt" << std::endl;
+#endif
+                do_next = false;
+                close_cb();
+                break;
+            default:
+                break;
+            }
         }
     }
 
