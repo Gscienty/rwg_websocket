@@ -22,6 +22,8 @@ private:
     std::map<int, std::map<std::string, std::string>> _websocks;
     std::function<void (rwg_websocket::frame& frame, std::function<void ()>)> _func;
     std::function<bool (rwg_web::req&)> _handshake;
+    std::function<void (int)> _init;
+    std::function<void (int)> _remove;
     rwg_websocket::frame _frame;
 
     bool __is_websocket_handshake(rwg_web::req& req) {
@@ -89,6 +91,10 @@ private:
         this->_websocks[req.fd()]["Key"] = res.header_parameters()["Sec-WebSocket-Accept"];
         this->_websocks[req.fd()]["Version"] = res.header_parameters()["Sec-WebSocket-Version"];
         this->_websocks[req.fd()]["URI"] = req.uri();
+
+        if (bool(this->_init)) {
+            this->_init(req.fd());
+        }
     }
 
     void __reject(rwg_web::req&, rwg_web::res& res) {
@@ -176,6 +182,9 @@ public:
         auto itr = this->_websocks.find(fd);
         if (itr != this->_websocks.end()) {
             this->_websocks.erase(itr);
+            if (bool(this->_remove)) {
+                this->_remove(fd);
+            }
         }
     }
 
@@ -183,12 +192,20 @@ public:
         return this->_websocks.find(fd) != this->_websocks.end();
     }
 
-    void handle(std::function<void (rwg_websocket::frame&, std::function<void ()>)> func) {
+    void frame_handle(std::function<void (rwg_websocket::frame&, std::function<void ()>)> func) {
         this->_func = func;
     }
 
     void handshake_handle(std::function<bool (rwg_web::req&)> handler) {
         this->_handshake = handler;
+    }
+
+    void init_handle(std::function<void (int)> handler) {
+        this->_init = handler;
+    }
+
+    void remove_handle(std::function<void (int)> handler) {
+        this->_remove = handler;
     }
 
     bool available() const {
