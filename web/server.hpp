@@ -101,7 +101,7 @@ private:
     }
 
 public:
-    server(int epsize, int events_size, int ep_wait_timeout) 
+    server(int epsize = 1024, int events_size = 16, int ep_wait_timeout = -1) 
         : _procs_count(::sysconf(_SC_NPROCESSORS_CONF))
         , _epsize(epsize)
         , _events_size(events_size)

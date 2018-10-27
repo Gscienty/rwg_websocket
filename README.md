@@ -36,7 +36,7 @@ void http_handler(rwg_web::req&, rwg_web::res& res) {
 }
 
 int main() {
-    rwg_web::server server(10, 1, 2000);
+    rwg_web::server server;
     server.listen("127.0.0.1", 8088);
     server.http_handle(http_handler);
     server.start();
