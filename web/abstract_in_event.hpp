@@ -8,7 +8,7 @@ namespace rwg_web {
 class abstract_in_event : public rwg_web::event {
 public:
     virtual ~abstract_in_event() {  }
-    virtual void in_event(int fd) = 0;
+    virtual void in_event() = 0;
 };
 
 }

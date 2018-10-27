@@ -39,15 +39,16 @@ private:
     std::function<void (rwg_web::req&, rwg_web::res&)> _http_handler;
     rwg_websocket::startup _websocket;
 
-    void __close(::epoll_event& event) {
+    void __close(int fd) {
 #ifdef DEBUG
         std::cout << "close event" << std::endl;
 #endif
         if (bool(this->_close_cb)) {
-            this->_close_cb(event.data.fd);
+            this->_close_cb(fd);
         }
-        close(event.data.fd);
-        auto itr = this->_fd_in_events.find(event.data.fd);
+        close(fd);
+        this->_websocket.remove(fd);
+        auto itr = this->_fd_in_events.find(fd);
         if (itr != this->_fd_in_events.end()) {
             delete itr->second;
             this->_fd_in_events.erase(itr);
@@ -76,7 +77,7 @@ private:
 #ifdef DEBUG
                     std::cout << "fd[" << event.data.fd << "]: remote close" << std::endl;
 #endif
-                    this->__close(event);
+                    this->__close(event.data.fd);
                 }
                 else if (event.events & EPOLLIN) {
 #ifdef DEBUG
@@ -87,7 +88,7 @@ private:
 #ifdef DEBUG
                         std::cout << "find action" << std::endl;
 #endif
-                        action_itr->second->in_event(event.data.fd);
+                        action_itr->second->in_event();
                     }
                     else {
 #ifdef DEBUG
@@ -117,13 +118,17 @@ public:
         }
     }
 
-    virtual void in_event(int fd) override {
+    virtual ~server() {
+
+    }
+
+    virtual void in_event() override {
 #ifdef DEBUG
-        std::cout << "server[" << fd << "] accept" << std::endl;
+        std::cout << "server[" << this->ep_event().data.fd << "] accept" << std::endl;
 #endif
         ::sockaddr_in c_addr;
         ::socklen_t c_addr_len;
-        int c_fd = ::accept(fd, reinterpret_cast<::sockaddr *>(&c_addr), &c_addr_len);
+        int c_fd = ::accept(this->ep_event().data.fd, reinterpret_cast<::sockaddr *>(&c_addr), &c_addr_len);
 
         // set nonblock
         int flags = ::fcntl(c_fd, F_GETFL);
