@@ -36,7 +36,7 @@ private:
     std::map<int, rwg_web::abstract_in_event *> _fd_in_events;
     std::map<int, ::epoll_event> _events;
     std::function<void (int)> _close_cb;
-    std::function<void (rwg_web::req&, rwg_web::res&)> _http_handler;
+    std::function<void (rwg_web::req&, rwg_web::res&, std::function<void ()>)> _http_handler;
     rwg_websocket::startup _websocket;
 
     void __close(int fd) {
@@ -131,11 +131,11 @@ public:
         int c_fd = ::accept(this->ep_event().data.fd, reinterpret_cast<::sockaddr *>(&c_addr), &c_addr_len);
 
         // set nonblock
-        int flags = ::fcntl(c_fd, F_GETFL);
+        int flags = ::fcntl(c_fd, F_GETFL, 0);
         if (flags == -1) {
             flags = 0;
         }
-        ::fcntl(c_fd, flags | O_NONBLOCK);
+        ::fcntl(c_fd, F_SETFL, flags | O_NONBLOCK);
 
         int epfd = this->_eps[this->_loop_itr];
         this->_loop_itr = (this->_loop_itr + 1) % this->_eps.size();
@@ -175,12 +175,16 @@ public:
         ::epoll_ctl(this->_main_epfd, EPOLL_CTL_ADD, sfd, &this->ep_event());
     }
 
-    void http_handle(std::function<void (rwg_web::req&, rwg_web::res&)> handler) {
+    void http_handle(std::function<void (rwg_web::req&, rwg_web::res&, std::function<void ()>)> handler) {
         this->_http_handler = handler;
     }
 
-    void websocket_heandle(std::function<void (rwg_websocket::frame&)> handler) {
+    void websocket_handle(std::function<void (rwg_websocket::frame&, std::function<void ()>)> handler) {
         this->_websocket.handle(handler);
+    }
+
+    void websocket_handshake_handle(std::function<bool (rwg_web::req&)> handler) {
+        this->_websocket.handshake_handle(handler);
     }
 
     void start() {
