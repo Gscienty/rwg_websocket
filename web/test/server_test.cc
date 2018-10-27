@@ -3,7 +3,7 @@
 int main() {
     rwg_web::server server(10, 1, 2000);
     server.listen("127.0.0.1", 8088);
-    auto exec = [] (rwg_web::req&, rwg_web::res& res) -> void {
+    auto exec = [] (rwg_web::req&, rwg_web::res& res, std::function<void ()>) -> void {
         res.version() = "HTTP/1.1";
         res.status_code() = 200;
         res.description() = "OK";

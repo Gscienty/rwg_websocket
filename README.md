@@ -10,7 +10,7 @@
 #include "web/server.hpp"
 #include <string>
 
-void http_handler(rwg_web::req&, rwg_web::res& res) {
+void http_handler(rwg_web::req&, rwg_web::res& res, std::function<void ()>) {
     res.version() = "HTTP/1.1";
     res.status_code() = 200;
     res.description() = "OK";
