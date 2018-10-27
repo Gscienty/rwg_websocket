@@ -11,23 +11,64 @@
 
 namespace rwg_websocket {
 
+enum frame_parse_stat {
+    fpstat_first_byte,
+    fpstat_second_byte,
+    fpstat_payloadlen2_1,
+    fpstat_payloadlen2_2,
+    fpstat_payloadlen8_1,
+    fpstat_payloadlen8_2,
+    fpstat_payloadlen8_3,
+    fpstat_payloadlen8_4,
+    fpstat_payloadlen8_5,
+    fpstat_payloadlen8_6,
+    fpstat_payloadlen8_7,
+    fpstat_payloadlen8_8,
+    fpstat_mask_1,
+    fpstat_mask_2,
+    fpstat_mask_3,
+    fpstat_mask_4,
+    fpstat_payload,
+    fpstat_end,
+    fpstat_interrupt,
+    fpstat_err,
+    fpstat_next,
+};
+
 class frame {
 private:
     int _fd;
     bool _fin_flag;
     rwg_websocket::op _opcode;
     bool _mask;
+    std::uint64_t _payload_len;
+    std::uint64_t _payload_loaded_count;
     std::basic_string<std::uint8_t> _payload;
     std::basic_string<std::uint8_t> _masking_key;
+
+    rwg_websocket::frame_parse_stat _stat;
     
     std::uint8_t __read_byte() {
         std::uint8_t c;
-        ::read(this->_fd, &c, 1);
+        ::ssize_t ret = ::read(this->_fd, &c, 1);
+        if (ret == 0) {
+            this->_stat = rwg_websocket::fpstat_interrupt;
+        }
+        if (ret == EAGAIN) {
+            this->_stat = rwg_websocket::fpstat_next;
+        }
         return c;
     }
 
 public:
-    frame(int fd) : _fd(fd) {
+    frame()
+        : _fd(0)
+        , _fin_flag(false)
+        , _mask(false)
+        , _payload_len(0)
+        , _payload_loaded_count(0)
+        , _stat(rwg_websocket::fpstat_first_byte) {
+        this->_masking_key.resize(4, 0);
     }
 
     bool& fin_flag() { return this->_fin_flag; }
@@ -36,6 +77,18 @@ public:
     std::basic_string<std::uint8_t>& payload() { return this->_payload; }
     std::basic_string<std::uint8_t>& masking_key() { return this->_masking_key; }
     int& fd() { return this->_fd; }
+    rwg_websocket::frame_parse_stat& stat() { return this->_stat; }
+
+    void reset() {
+        this->_fin_flag = false;
+        this->_mask = false;
+        this->_payload_len = 0;
+        this->_payload_loaded_count = 0;
+        this->_stat = rwg_websocket::fpstat_first_byte;
+        this->_masking_key.clear();
+        this->_masking_key.resize(4, 0);
+        this->_payload.clear();
+    }
 
     void write() {
         std::uint8_t c = 0x00;
@@ -94,64 +147,178 @@ public:
 #ifdef DEBUG
         std::cout << "websocket frame parsing" << std::endl;
 #endif
-        std::uint8_t c = this->__read_byte();
-        if ((c & 0x80) != 0) {
-            this->_fin_flag = true;
-        }
-        else {
-            this->_fin_flag = false;
-        }
-#ifdef DEBUG
-        std::cout << "fin flag: " << this->_fin_flag << std::endl;
-#endif
-        this->_opcode = static_cast<rwg_websocket::op>(c & 0x0F);
-
-        c = this->__read_byte();
-        if ((c & 0x80) != 0) {
-            this->_mask = true;
-        }
-        else {
-            this->_mask = false;
-        }
-
-        std::uint64_t payload_len = (c & 0x7F);
-        if (payload_len == 126) {
-            std::uint8_t c1 = this->__read_byte();
-            std::uint8_t c2 = this->__read_byte();
-
-            payload_len = (static_cast<std::uint64_t>(c1) << 8) | (static_cast<std::uint64_t>(c2));
-        }
-        else if (payload_len == 127) {
-            std::uint8_t cs[8];
-            for (auto i = 0; i < 8; i++) {
-                cs[i] = this->__read_byte();
+        while (this->_stat != rwg_websocket::fpstat_end &&
+               this->_stat != rwg_websocket::fpstat_err &&
+               this->_stat != rwg_websocket::fpstat_interrupt &&
+               this->_stat != rwg_websocket::fpstat_next) {
+            std::uint8_t c = this->__read_byte();
+            if (this->_stat == rwg_websocket::fpstat_interrupt ||
+                this->_stat == rwg_websocket::fpstat_err ||
+                this->_stat == rwg_websocket::fpstat_end ||
+                this->_stat == rwg_websocket::fpstat_next) {
+                break;
             }
 
-            payload_len = (static_cast<std::uint64_t>(cs[0]) << 56) |
-                (static_cast<std::uint64_t>(cs[1]) << 48) |
-                (static_cast<std::uint64_t>(cs[2]) << 40) |
-                (static_cast<std::uint64_t>(cs[3]) << 32) |
-                (static_cast<std::uint64_t>(cs[4]) << 24) |
-                (static_cast<std::uint64_t>(cs[5]) << 16) |
-                (static_cast<std::uint64_t>(cs[6]) << 8) |
-                (static_cast<std::uint64_t>(cs[7]));
-        }
-
+            switch (this->_stat) {
+            default:
+                break;
+            case rwg_websocket::fpstat_first_byte:
+                if ((c & 0x80) != 0) {
+                    this->_fin_flag = true;
+                }
+                else {
+                    this->_fin_flag = false;
+                }
 #ifdef DEBUG
-        std::cout << "websocket frame payload length:" << payload_len << std::endl;
+                std::cout << "fin flag: " << this->_fin_flag << std::endl;
 #endif
-
-        this->_masking_key.resize(4, 0);
-        if (this->_mask) {
-            for (auto i = 0; i < 4; i++) {
-                this->_masking_key[i] = this->__read_byte();
+                this->_opcode = static_cast<rwg_websocket::op>(c & 0x0F);
+                this->_stat = rwg_websocket::fpstat_second_byte;
+                break;
+            case rwg_websocket::fpstat_second_byte:
+                if ((c & 0x80) != 0) {
+                    this->_mask = true;
+                }
+                else {
+                    this->_mask = false;
+                }
+#ifdef DEBUG
+                std::cout << "mask flag:" << this->_mask << std::endl;
+#endif
+                this->_payload_len = (c & 0x7F);
+                if (this->_payload_len == 126) {
+                    this->_payload_len = 0;
+                    this->_stat = rwg_websocket::fpstat_payloadlen2_1;
+                }
+                else if (this->_payload_len == 127) {
+                    this->_payload_len = 0;
+                    this->_stat = rwg_websocket::fpstat_payloadlen8_1;
+                }
+                else {
+                    this->_payload.resize(this->_payload_len);
+                    if (this->_mask) {
+                        this->_stat = rwg_websocket::fpstat_mask_1;
+                    }
+                    else {
+                        this->_stat = rwg_websocket::fpstat_payload;
+                    }
+                }
+                break;
+            case rwg_websocket::fpstat_payloadlen2_1:
+                this->_payload_len = static_cast<uint64_t>(c) << 8;
+                this->_mask = rwg_websocket::fpstat_payloadlen2_2;
+                break;
+            case rwg_websocket::fpstat_payloadlen2_2:
+                this->_payload_len |= static_cast<uint64_t>(c);
+                if (this->_mask) {
+                    this->_stat = rwg_websocket::fpstat_mask_1;
+                }
+                else {
+                    this->_stat = rwg_websocket::fpstat_payload;
+                }
+                break;
+            case rwg_websocket::fpstat_payloadlen8_1:
+                this->_payload_len = static_cast<uint64_t>(c) << 56;
+                this->_stat = rwg_websocket::fpstat_payloadlen8_2;
+                break;
+            case rwg_websocket::fpstat_payloadlen8_2:
+                this->_payload_len |= static_cast<uint64_t>(c) << 48;
+                this->_stat = rwg_websocket::fpstat_payloadlen8_3;
+                break;
+            case rwg_websocket::fpstat_payloadlen8_3:
+                this->_payload_len |= static_cast<uint64_t>(c) << 40;
+                this->_stat = rwg_websocket::fpstat_payloadlen8_4;
+                break;
+            case rwg_websocket::fpstat_payloadlen8_4:
+                this->_payload_len |= static_cast<uint64_t>(c) << 32;
+                this->_stat = rwg_websocket::fpstat_payloadlen8_5;
+                break;
+            case rwg_websocket::fpstat_payloadlen8_5:
+                this->_payload_len |= static_cast<uint64_t>(c) << 24;
+                this->_stat = rwg_websocket::fpstat_payloadlen8_6;
+                break;
+            case rwg_websocket::fpstat_payloadlen8_6:
+                this->_payload_len |= static_cast<uint64_t>(c) << 16;
+                this->_stat = rwg_websocket::fpstat_payloadlen8_7;
+                break;
+            case rwg_websocket::fpstat_payloadlen8_7:
+                this->_payload_len |= static_cast<uint64_t>(c) << 8;
+                this->_stat = rwg_websocket::fpstat_payloadlen8_8;
+                break;
+            case rwg_websocket::fpstat_payloadlen8_8:
+                this->_payload_len |= static_cast<uint64_t>(c);
+                if (this->_mask) {
+                    this->_stat = rwg_websocket::fpstat_mask_1;
+                }
+                else {
+                    this->_stat = rwg_websocket::fpstat_payload;
+                }
+                break;
+            case rwg_websocket::fpstat_mask_1:
+                this->_masking_key[0] = c;
+                this->_stat = rwg_websocket::fpstat_mask_2;
+                break;
+            case rwg_websocket::fpstat_mask_2:
+                this->_masking_key[1] = c;
+                this->_stat = rwg_websocket::fpstat_mask_3;
+                break;
+            case rwg_websocket::fpstat_mask_3:
+                this->_masking_key[2] = c;
+                this->_stat = rwg_websocket::fpstat_mask_4;
+                break;
+            case rwg_websocket::fpstat_mask_4:
+                this->_masking_key[3] = c;
+                this->_stat = rwg_websocket::fpstat_payload;
+                break;
+            case rwg_websocket::fpstat_payload:
+                this->_payload[this->_payload_loaded_count] =
+                    c ^ this->_masking_key[this->_payload_loaded_count % 4];
+                this->_payload_loaded_count++;
+                if (this->_payload_len == this->_payload_loaded_count) {
+                    this->_stat = rwg_websocket::fpstat_end;
+                }
+                break;
             }
         }
 
-        this->_payload.resize(payload_len);
-        for (auto i = 0UL; i < payload_len; i++) {
-            this->_payload[i] = this->__read_byte() ^ (this->_masking_key[i % 4]);
-        }
+/*         c = this->__read_byte(); */
+/*         if (payload_len == 126) { */
+/*             std::uint8_t c1 = this->__read_byte(); */
+/*             std::uint8_t c2 = this->__read_byte(); */
+
+/*             payload_len = (static_cast<std::uint64_t>(c1) << 8) | (static_cast<std::uint64_t>(c2)); */
+/*         } */
+/*         else if (payload_len == 127) { */
+/*             std::uint8_t cs[8]; */
+/*             for (auto i = 0; i < 8; i++) { */
+/*                 cs[i] = this->__read_byte(); */
+/*             } */
+
+/*             payload_len = (static_cast<std::uint64_t>(cs[0]) << 56) | */
+/*                 (static_cast<std::uint64_t>(cs[1]) << 48) | */
+/*                 (static_cast<std::uint64_t>(cs[2]) << 40) | */
+/*                 (static_cast<std::uint64_t>(cs[3]) << 32) | */
+/*                 (static_cast<std::uint64_t>(cs[4]) << 24) | */
+/*                 (static_cast<std::uint64_t>(cs[5]) << 16) | */
+/*                 (static_cast<std::uint64_t>(cs[6]) << 8) | */
+/*                 (static_cast<std::uint64_t>(cs[7])); */
+/*         } */
+
+/* #ifdef DEBUG */
+/*         std::cout << "websocket frame payload length:" << payload_len << std::endl; */
+/* #endif */
+
+/*         this->_masking_key.resize(4, 0); */
+/*         if (this->_mask) { */
+/*             for (auto i = 0; i < 4; i++) { */
+/*                 this->_masking_key[i] = this->__read_byte(); */
+/*             } */
+/*         } */
+
+/*         this->_payload.resize(payload_len); */
+/*         for (auto i = 0UL; i < payload_len; i++) { */
+/*             this->_payload[i] = this->__read_byte() ^ (this->_masking_key[i % 4]); */
+/*         } */
     }
 };
 
