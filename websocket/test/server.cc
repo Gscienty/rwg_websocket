@@ -33,7 +33,7 @@ int main() {
 
     server.http_handle(web_handle);
     server.websocket_handshake_handle([] (rwg_web::req&) -> bool { return true; });
-    server.websocket_handle(websock_handle);
+    server.websocket_frame_handle(websock_handle);
 
     server.start();
 
