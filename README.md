@@ -6,7 +6,7 @@
 该项目作为gitter_kid子项目。
 
 ## 实现简易HTTP服务器
-'''
+```
 #include "web/server.hpp"
 #include <string>
 
@@ -43,4 +43,4 @@ int main() {
 
     return 0;
 }
-'''
+```
