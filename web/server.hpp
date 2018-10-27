@@ -179,12 +179,20 @@ public:
         this->_http_handler = handler;
     }
 
-    void websocket_handle(std::function<void (rwg_websocket::frame&, std::function<void ()>)> handler) {
-        this->_websocket.handle(handler);
+    void websocket_frame_handle(std::function<void (rwg_websocket::frame&, std::function<void ()>)> handler) {
+        this->_websocket.frame_handle(handler);
     }
 
     void websocket_handshake_handle(std::function<bool (rwg_web::req&)> handler) {
         this->_websocket.handshake_handle(handler);
+    }
+
+    void websocket_remove_handle(std::function<void (int)> handler) {
+        this->_websocket.remove_handle(handler);
+    }
+
+    void websocket_init_handle(std::function<void (int)> handler) {
+        this->_websocket.init_handle(handler);
     }
 
     void start() {
