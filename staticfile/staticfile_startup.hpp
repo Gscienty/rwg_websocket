@@ -30,6 +30,7 @@ private:
         res.header_parameters()["Connection"] = "keep-alive";
 
         res.write_header();
+        res.flush();
     }
 
     std::size_t __content_length(int fd) {
@@ -69,6 +70,9 @@ public:
         }
 
         std::string realpath = this->__realpath(req.uri());
+#ifdef DEBUG
+        std::cout << "staticfile real path: " << realpath << std::endl;
+#endif
         if (::access(realpath.c_str(), F_OK) != 0 || ::access(realpath.c_str(), R_OK) != 0) {
 #ifdef DEBUG
             std::cout << "staticfile not found" << std::endl;
