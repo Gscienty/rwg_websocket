@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    </head>
+    <body>
+        <button id="color" onclick="change_color()">white</button>
+        <br />
+        <canvas id="canvas" height="650" width="650"></canvas>
+
+        <script>
+
+function change_color() {
+    color = document.getElementById("color").innerText;
+    if (color === 'white') {
+        document.getElementById("color").innerText = 'black';
+    }
+    else {
+        document.getElementById("color").innerText = 'white';
+    }
+}
+
+var ctx = document.getElementById('canvas').getContext('2d');
+
+function draw_net() {
+    var unit_distance = 600 / 15;
+    ctx.strokeStyle = '#000000';
+    ctx.fillStyle = '#000000';
+    for (var i = 0; i <= 15; i++) {
+        ctx.moveTo(25 + unit_distance * i, 25 + 0);
+        ctx.lineTo(25 + unit_distance * i, 25 + 600);
+
+        ctx.moveTo(25 + 0, 25 + unit_distance * i);
+        ctx.lineTo(25 + 600, 25 + unit_distance * i);
+    }
+
+    ctx.stroke();
+}
+
+draw_net();
+
+function dot(x, y, color) {
+    var r = 600 / 30 - 5;
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, 2 * Math.PI);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.stroke();
+}
+
+var ws = new WebSocket('ws://localhost:5000');
+
+ws.onmessage = function(e) {
+    console.log(e);
+    var param = e.data.split(',');
+    dot(parseInt(param[0]), parseInt(param[1]), param[2]);
+}
+
+document.getElementById('canvas').addEventListener('click', function (e) {
+    dot(e.offsetX, e.offsetY, document.getElementById('color').innerText);
+    ws.send(e.offsetX + ',' + e.offsetY + ',' + document.getElementById('color').innerText);
+});
+
+        </script>
+    </body>
+</html>
