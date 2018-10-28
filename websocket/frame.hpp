@@ -100,15 +100,15 @@ public:
 
         c = 0x00;
         if (this->_mask) {
-            c |= 0x01;
+            c |= 0x80;
         }
 
         if (this->_payload.size() < 126) {
-            c |= static_cast<std::uint8_t>(this->_payload.size() << 1);
+            c |= static_cast<std::uint8_t>(this->_payload.size());
             ::write(this->_fd, &c, 1);
         }
         else if (this->_payload.size() <= 0xFFFF) {
-            c = 126;
+            c |= static_cast<std::uint8_t>(126);
             ::write(this->_fd, &c, 1);
             std::uint8_t cs[2];
             cs[0] = (this->_payload.size() & 0xFF00) >> 8;
@@ -117,7 +117,7 @@ public:
             ::write(this->_fd, cs, 2);
         }
         else {
-            c = 127;
+            c |= static_cast<std::uint8_t>(127);
             ::write(this->_fd, &c, 1);
             std::uint8_t cs[8];
             cs[0] = (this->_payload.size() & 0xFF00000000000000) >> 56;
@@ -134,10 +134,10 @@ public:
 
         if (this->_mask) {
             ::write(this->_fd, this->_masking_key.data(), 4);
-        }
 
-        for (auto i = 0UL; i < this->_payload.size(); i++) {
-            this->_payload[i] ^= this->_masking_key[i % 4];
+            for (auto i = 0UL; i < this->_payload.size(); i++) {
+                this->_payload[i] ^= this->_masking_key[i % 4];
+            }
         }
 
         ::write(this->_fd, this->_payload.data(), this->_payload.size());
