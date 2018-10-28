@@ -101,9 +101,9 @@ private:
             case rwg_web::req_stat::req_stat_header_method:
                 c = this->_buf[this->_buf_pos++];
                 if (c == ' ') {
-#ifdef DEBUG
-                    std::cout << "parse completed req [method]" << std::endl;
-#endif
+/* #ifdef DEBUG */
+/*                     std::cout << "parse completed req [method]" << std::endl; */
+/* #endif */
                     this->_stat = rwg_web::req_stat::req_stat_header_uri;
                 }
                 else { this->_method.push_back(c); }
@@ -111,9 +111,9 @@ private:
             case rwg_web::req_stat::req_stat_header_uri:
                 c = this->_buf[this->_buf_pos++];
                 if (c == ' ') {
-#ifdef DEBUG
-                    std::cout << "parse completed req [uri]" << std::endl;
-#endif
+/* #ifdef DEBUG */
+/*                     std::cout << "parse completed req [uri]" << std::endl; */
+/* #endif */
                     this->_stat = rwg_web::req_stat::req_stat_header_verison;
                 }
                 else { this->_uri.push_back(c); }
@@ -121,9 +121,9 @@ private:
             case rwg_web::req_stat::req_stat_header_verison:
                 c = this->_buf[this->_buf_pos++];
                 if (c == '\r') {
-#ifdef DEBUG
-                    std::cout << "parse completed req [version]" << std::endl;
-#endif
+/* #ifdef DEBUG */
+/*                     std::cout << "parse completed req [version]" << std::endl; */
+/* #endif */
                     this->_stat = rwg_web::req_stat_header_req_end;
                 }
                 else { this->_version.push_back(c); }
@@ -131,9 +131,9 @@ private:
             case rwg_web::req_stat::req_stat_header_req_end:
                 c = this->_buf[this->_buf_pos++];
                 if (c == '\n') {
-#ifdef DEBUG
-                    std::cout << "parse completed req req header" << std::endl;
-#endif
+/* #ifdef DEBUG */
+/*                     std::cout << "parse completed req req header" << std::endl; */
+/* #endif */
                     this->_stat = rwg_web::req_stat::req_stat_header_param;
                 }
                 else {
@@ -146,9 +146,9 @@ private:
             case rwg_web::req_stat::req_stat_header_param:
                 c = this->_buf[this->_buf_pos++];
                 if (c == '\r') {
-#ifdef DEBUG
-                    std::cout << "parse req one parameter" << std::endl;
-#endif
+/* #ifdef DEBUG */
+/*                     std::cout << "parse req one parameter" << std::endl; */
+/* #endif */
                     std::string line = sstr.str();
                     sstr.str("");
                     std::size_t delimiter = line.find(':');
@@ -178,9 +178,9 @@ private:
                     this->_stat = rwg_web::req_stat::req_stat_header_param_end3;
                 }
                 else {
-#ifdef DEBUG
-                    std::cout << "req parse next parameter" << std::endl;
-#endif
+/* #ifdef DEBUG */
+/*                     std::cout << "req parse next parameter" << std::endl; */
+/* #endif */
                     sstr.put(c);
                     this->_stat = rwg_web::req_stat::req_stat_header_param;
                 }
