@@ -11,15 +11,10 @@ class default_startup {
 private:
     const std::string _uri;
 public:
-    default_startup(const std::string uri) : _uri(uri) {}
+    default_startup(const std::string);
 
-    void run(rwg_web::req& req, rwg_web::res&) {
-        if (req.uri() == "/") {
-            req.uri() = this->_uri;
-        }
-    }
+    void run(rwg_web::req &, rwg_web::res &);
 };
-
 }
 
 #endif
