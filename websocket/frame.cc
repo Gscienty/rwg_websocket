@@ -1,4 +1,6 @@
 #include "websocket/frame.hpp"
+#include <openssl/ssl.h>
+#include <sstream>
 #ifdef DEBUG
 #include <iostream>
 #endif
@@ -6,6 +8,8 @@
 namespace rwg_websocket {
 frame::frame()
     : _fd(0)
+    , _security(false)
+    , _ssl(nullptr)
     , _fin_flag(false)
     , _mask(false)
     , _payload_len(0)
@@ -16,14 +20,49 @@ frame::frame()
 
 std::uint8_t frame::__read_byte() {
     std::uint8_t c;
-    ::ssize_t ret = ::read(this->_fd, &c, 1);
-    if (ret == 0) {
-        this->_stat = rwg_websocket::fpstat_interrupt;
+    if (this->_security) {
+#ifdef DEBUG
+        if (this->_ssl == nullptr) {
+            std::cout << "ssl is NULL" << std::endl;
+        }
+#endif
+        ::ssize_t ret = ::SSL_read(this->_ssl, &c, 1);
+        if (ret <= 0) {
+            if (ret == 0) {
+#ifdef DEBUG
+                std::cout << "tls read error (part 1)" << std::endl;
+#endif
+                this->_stat = rwg_websocket::fpstat_interrupt;
+            }
+            else if (SSL_get_error(this->_ssl, ret) != SSL_ERROR_WANT_READ) {
+#ifdef DEBUG
+                std::cout << "tls read error (part 2)" << std::endl;
+#endif
+                this->_stat = rwg_websocket::fpstat_interrupt;
+            }
+            else {
+#ifdef DEBUG
+                std::cout << "tls read need next" << std::endl;
+#endif
+                this->_stat = rwg_websocket::fpstat_next;
+            }
+        }
     }
-    if (ret == -1) {
-        this->_stat = rwg_websocket::fpstat_next;
+    else {
+        ::ssize_t ret = ::read(this->_fd, &c, 1);
+        if (ret == 0) {
+            this->_stat = rwg_websocket::fpstat_interrupt;
+        }
+        if (ret == -1) {
+            this->_stat = rwg_websocket::fpstat_next;
+        }
+
     }
     return c;
+}
+
+void frame::use_security(bool use) {
+    this->_security = use;
 }
 
 bool& frame::fin_flag() { return this->_fin_flag; }
@@ -35,6 +74,7 @@ std::basic_string<std::uint8_t> &frame::payload() { return this->_payload; }
 std::basic_string<std::uint8_t> &frame::masking_key() { return this->_masking_key; }
 
 int &frame::fd() { return this->_fd; }
+SSL *&frame::ssl() { return this->_ssl; }
 
 rwg_websocket::frame_parse_stat &frame::stat() { return this->_stat; }
 
@@ -50,12 +90,15 @@ void frame::reset() {
 }
 
 void frame::write() {
+    std::basic_stringstream<uint8_t> sstr;
+
     std::uint8_t c = 0x00;
     if (this->_fin_flag) {
         c |= 0x80;
     }
     c |= this->_opcode;
-    ::write(this->_fd, &c, 1);
+    /* ::write(this->_fd, &c, 1); */
+    sstr.put(c);
 
     c = 0x00;
     if (this->_mask) {
@@ -64,20 +107,26 @@ void frame::write() {
 
     if (this->_payload.size() < 126) {
         c |= static_cast<std::uint8_t>(this->_payload.size());
-        ::write(this->_fd, &c, 1);
+        /* ::write(this->_fd, &c, 1); */
+        sstr.put(c);
     }
     else if (this->_payload.size() <= 0xFFFF) {
         c |= static_cast<std::uint8_t>(126);
-        ::write(this->_fd, &c, 1);
+        /* ::write(this->_fd, &c, 1); */
+        sstr.put(c);
+
         std::uint8_t cs[2];
         cs[0] = (this->_payload.size() & 0xFF00) >> 8;
         cs[1] = (this->_payload.size() & 0x00FF);
 
-        ::write(this->_fd, cs, 2);
+        /* ::write(this->_fd, cs, 2); */
+        sstr.write(cs, 2);
     }
     else {
         c |= static_cast<std::uint8_t>(127);
-        ::write(this->_fd, &c, 1);
+        /* ::write(this->_fd, &c, 1); */
+        sstr.put(c);
+
         std::uint8_t cs[8];
         cs[0] = (this->_payload.size() & 0xFF00000000000000) >> 56;
         cs[1] = (this->_payload.size() & 0x00FF000000000000) >> 48;
@@ -88,18 +137,28 @@ void frame::write() {
         cs[6] = (this->_payload.size() & 0x000000000000FF00) >> 8;
         cs[7] = (this->_payload.size() & 0x00000000000000FF);
 
-        ::write(this->_fd, cs, 8);
+        /* ::write(this->_fd, cs, 8); */
+        sstr.write(cs, 8);
     }
 
     if (this->_mask) {
-        ::write(this->_fd, this->_masking_key.data(), 4);
+        /* ::write(this->_fd, this->_masking_key.data(), 4); */
+        sstr.write(this->_masking_key.data(), 4);
 
         for (auto i = 0UL; i < this->_payload.size(); i++) {
             this->_payload[i] ^= this->_masking_key[i % 4];
         }
     }
 
-    ::write(this->_fd, this->_payload.data(), this->_payload.size());
+    /* ::write(this->_fd, this->_payload.data(), this->_payload.size()); */
+    sstr.write(this->_payload.data(), this->_payload.size());
+
+    if (this->_security) {
+        ::SSL_write(this->_ssl, sstr.str().data(), sstr.str().size());
+    }
+    else {
+        ::write(this->_fd, sstr.str().data(), sstr.str().size());
+    }
 }
 
 void frame::parse() {

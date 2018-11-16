@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <string>
 #include <unistd.h>
+#include <openssl/ssl.h>
 
 namespace rwg_websocket {
 
@@ -35,6 +36,8 @@ enum frame_parse_stat {
 class frame {
 private:
     int _fd;
+    bool _security;
+    SSL *_ssl;
     bool _fin_flag;
     rwg_websocket::op _opcode;
     bool _mask;
@@ -54,7 +57,9 @@ public:
     bool& mask() { return this->_mask; }
     std::basic_string<std::uint8_t> &payload();
     std::basic_string<std::uint8_t> &masking_key();
-    int& fd();
+    int &fd();
+    SSL *&ssl();
+    void use_security(bool use = true);
     rwg_websocket::frame_parse_stat &stat();
     void reset();
     void write();
