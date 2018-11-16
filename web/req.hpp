@@ -62,6 +62,7 @@ public:
     void parse();
 
     int &fd();
+    SSL *&ssl();
     std::string &method();
     std::string &uri();
     std::string &version();

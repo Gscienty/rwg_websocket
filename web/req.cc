@@ -337,6 +337,10 @@ int &req::fd() {
     return this->_fd;
 }
 
+SSL *&req::ssl() {
+    return this->_ssl;
+}
+
 std::string &req::method() {
     return this->_method;
 }
