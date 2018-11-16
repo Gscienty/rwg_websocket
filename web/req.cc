@@ -6,6 +6,8 @@
 namespace rwg_web {
 req::req()
     : _fd(0)
+    , _security(false)
+    , _ssl(nullptr)
     , _stat(rwg_web::req_stat::req_stat_header_method)
     , _buf_size(0)
     , _buf(nullptr)
@@ -26,16 +28,50 @@ void req::__load() {
     std::cout << "req load data" << std::endl;
 #endif
     this->_buf_pos = 0;
-    ::ssize_t ret = ::read(this->_fd, this->_buf, this->_buf_size);
-    if (ret <= 0) {
-        this->_buf_avail_size = 0;
-        if (ret == 0) {
-            this->_stat = rwg_web::req_stat::req_stat_interrupt;
+    ::ssize_t ret = 0;
+
+    if (this->_security) {
+        ret = ::SSL_read(this->_ssl, this->_buf, this->_buf_size);
+        if (ret <= 0) {
+            this->_buf_avail_size = 0;
+            if (ret == 0) {
+#ifdef DEBUG
+                std::cout << "tls read error (part 1)" << std::endl;
+#endif
+                this->_stat = rwg_web::req_stat::req_stat_err;
+            }
+            else if (SSL_get_error(this->_ssl, ret) != SSL_ERROR_WANT_READ) {
+#ifdef DEBUG
+                std::cout << "tls read error (part 2)" << std::endl;
+#endif
+                this->_stat = rwg_web::req_stat::req_stat_err;
+            }
+#ifdef DEBUG
+            else {
+                std::cout << "tls read need next" << std::endl;
+            }
+#endif
+            return;
         }
-        else if (ret != EAGAIN) {
-            this->_stat = rwg_web::req_stat::req_stat_err;
+#ifdef DEBUG
+        else {
+            std::cout << "HERE:" << this->_buf << std::endl;
         }
-        return;
+#endif
+    }
+    else {
+        ret = ::read(this->_fd, this->_buf, this->_buf_size);
+
+        if (ret <= 0) {
+            this->_buf_avail_size = 0;
+            if (ret == 0) {
+                this->_stat = rwg_web::req_stat::req_stat_interrupt;
+            }
+            else if (ret != EAGAIN) {
+                this->_stat = rwg_web::req_stat::req_stat_err;
+            }
+            return;
+        }
     }
 
     this->_buf_avail_size = ret;
@@ -63,7 +99,8 @@ void req::__parse_header() {
         if (this->_buf_pos == this->_buf_avail_size) {
             this->__load();
             if (this->_stat == rwg_web::req_stat::req_stat_interrupt ||
-                this->_stat == rwg_web::req_stat::req_stat_err) {
+                this->_stat == rwg_web::req_stat::req_stat_err ||
+                this->_buf_pos == this->_buf_avail_size) {
                 break;
             }
         }
@@ -112,7 +149,7 @@ void req::__parse_header() {
             }
             else {
 #ifdef DEBUG
-                std::cout << "parse req req header error" << std::endl;
+                std::cout << "parse req header error" << std::endl;
 #endif
                 this->_stat = rwg_web::req_stat::req_stat_err;
             }
@@ -185,7 +222,8 @@ void req::__parse_raw() {
         if (this->_buf_pos == this->_buf_avail_size) {
             this->__load();
             if (this->_stat == rwg_web::req_stat::req_stat_interrupt ||
-                this->_stat == rwg_web::req_stat::req_stat_err) {
+                this->_stat == rwg_web::req_stat::req_stat_err ||
+                this->_buf_pos == this->_buf_avail_size) {
                 return;
             }
         }
@@ -203,6 +241,14 @@ void req::__parse_raw() {
     this->_stat = rwg_web::req_stat::req_stat_end;
 }
 
+void req::use_security(SSL *ssl, bool use) {
+    this->_security = use;
+#ifdef DEBUG
+    std::cout << "req use security [" << this->_security << "]" << std::endl;
+#endif
+    this->_ssl = ssl;
+}
+
 void req::reset() {
     this->_fd = 0;
     this->_stat = rwg_web::req_stat::req_stat_header_method;
@@ -216,10 +262,6 @@ void req::reset() {
     this->_uri.clear();
     this->_version.clear();
     this->_header_parameters.clear();
-}
-
-int &req::fd() {
-    return this->_fd;
 }
 
 void req::alloc_buf(int size) {
@@ -252,7 +294,7 @@ void req::parse() {
     }
     this->__parse_header();
 #ifdef DEBUG
-    std::cout << "receive http req:" << std::endl;
+    std::cout << "receive http req header:" << std::endl;
     std::cout << this->_method << ' ' << this->_uri << ' ' << this->_version << std::endl;
 
     for (auto kv : this->_header_parameters) {
@@ -271,6 +313,10 @@ void req::parse() {
             this->_stat = rwg_web::req_stat::req_stat_end;
         }
     }
+}
+
+int &req::fd() {
+    return this->_fd;
 }
 
 std::string &req::method() {

@@ -5,6 +5,7 @@
 #include <string>
 #include <map>
 #include <sstream>
+#include <openssl/ssl.h>
 
 namespace rwg_web {
 
@@ -28,6 +29,9 @@ enum req_stat {
 class req {
 private:
     int _fd;
+    bool _security;
+    SSL *_ssl;
+
     req_stat _stat;
     int _buf_size;
     char * _buf;
@@ -50,17 +54,18 @@ public:
     req();
     virtual ~req();
 
+    void use_security(SSL *, bool use = true);
     void reset();
-    int& fd();
     void alloc_buf(int size);
     void free_buf();
     rwg_web::req_stat stat() const;
     void parse();
 
-    std::string& method();
-    std::string& uri();
-    std::string& version();
-    char* raw() const;
+    int &fd();
+    std::string &method();
+    std::string &uri();
+    std::string &version();
+    char *raw() const;
     std::uint64_t raw_len() const;
     std::map<std::string, std::string>& header_parameters();
 };
