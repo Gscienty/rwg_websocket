@@ -107,13 +107,18 @@ void server::in_event() {
     int c_fd = ::accept(this->ep_event().data.fd, reinterpret_cast<::sockaddr *>(&c_addr), &c_addr_len);
 
     // set nonblock
-    /* if (!this->_security) { */
-        int flags = ::fcntl(c_fd, F_GETFL, 0);
-        if (flags == -1) {
-            flags = 0;
-        }
-        ::fcntl(c_fd, F_SETFL, flags | O_NONBLOCK);
-    /* } */
+#ifdef DEBUG
+    std::cout << "set fd [" << c_fd << "] nonblock" << std::endl;
+#endif
+    int c_flags = ::fcntl(c_fd, F_GETFL, 0);
+    if (c_flags == -1) {
+        c_flags = 0;
+    }
+    if (::fcntl(c_fd, F_SETFL, c_flags | O_NONBLOCK) < 0) {
+#ifdef DEBUG
+        std::cout << "set nonblock error" << std::endl;
+#endif
+    }
 
     int epfd = this->_eps[this->_loop_itr];
     this->_loop_itr = (this->_loop_itr + 1) % this->_eps.size();
@@ -122,13 +127,16 @@ void server::in_event() {
     std::cout << "remote IP: [" << c_addr.sin_addr.s_addr << "]; port: [" << c_addr.sin_port << "]; client[" << c_fd << "] added to epoll[" << epfd << "]" << std::endl;
 #endif
 
-    auto ctx = new rwg_web::ctx(this->_http_handler,
+    auto ctx = new rwg_web::ctx(c_fd,
+                                this->_http_handler,
                                 this->_websocket,
                                 std::bind(&rwg_web::server::__close, this, std::placeholders::_1));
-    ctx->ep_event().data.fd = c_fd;
 
     if (this->_security) {
         if (!ctx->use_security(this->_ssl_ctx)) {
+#ifdef DEBUG
+            std::cout << "tls handshake failed" << std::endl;
+#endif
             delete ctx;
             close(c_fd);
             return;
