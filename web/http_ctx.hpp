@@ -18,7 +18,8 @@ private:
     rwg_web::req _req;
     rwg_web::res _res;
 public:
-    http_ctx(rwg_websocket::startup &,
+    http_ctx(int fd,
+             rwg_websocket::startup &,
              std::function<void (rwg_web::req & req, rwg_web::res &, std::function<void ()>)>);
     virtual ~http_ctx();
 
