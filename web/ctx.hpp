@@ -4,13 +4,17 @@
 #include "web/abstract_in_event.hpp"
 #include "web/http_ctx.hpp"
 #include "websocket/websocket_startup.hpp"
+#include <memory>
 #include <functional>
+#include <openssl/ssl.h>
 
 namespace rwg_web {
 
 class ctx : public rwg_web::abstract_in_event {
 private:
-    int _epfd;
+    bool _security;
+    bool _sec_inited;
+    SSL *_ssl;
     rwg_web::http_ctx _http_ctx;
     rwg_websocket::startup &_websocket;
     std::function<void (int)>_close_cb;
@@ -24,6 +28,7 @@ public:
     virtual ~ctx();
 
     virtual void in_event() override;
+    bool use_security(SSL_CTX *);
     void close();
 
 };
