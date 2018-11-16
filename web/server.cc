@@ -152,6 +152,8 @@ void server::use_security(bool use) {
     SSL_load_error_strings();
     OpenSSL_add_all_algorithms();
     this->_security = use;
+
+    this->_websocket.use_security(use);
 }
 
 void server::init_ssl(const char *cert, const char *key) {
