@@ -7,25 +7,25 @@ static const char __param_delimiter[] = { ':', ' ' };
 
 
 bool res::__putc(char c) {
-    if (this->_buf_pos == this->_buf_size) {
-        return this->flush();
-    }
-    this->_buf[this->_buf_pos++] = c;
-    if (this->_buf_pos == this->_buf_size) {
-        this->flush();
-    }
+    this->_buf.put(c);
+    /* if (this->_buf_pos == this->_buf_size) { */
+    /*     return this->flush(); */
+    /* } */
+    /* this->_buf[this->_buf_pos++] = c; */
+    /* if (this->_buf_pos == this->_buf_size) { */
+    /*     return this->flush(); */
+    /* } */
     return true;
 }
 
 
-res::res()
-    : _fd(0)
-    , _buf(nullptr)
-    , _buf_pos(0)
-    , _buf_size(0) {}
+res::res() : _fd(0) {}
 
-res::~res() {
-    this->free_buf();
+res::~res() {}
+
+void res::use_security(SSL *ssl, bool use) {
+    this->_security = use;
+    this->_ssl = ssl;
 }
 
 void res::reset() {
@@ -39,25 +39,25 @@ int &res::fd() {
     return this->_fd;
 }
 
-void res::alloc_buf(int size) {
-    if (this->_buf != nullptr) {
-        delete [] this->_buf;
-    }
+/* void res::alloc_buf(int size) { */
+/*     if (this->_buf != nullptr) { */
+/*         delete [] this->_buf; */
+/*     } */
 
-    this->_buf = new char[size];
-    this->_buf_pos = 0;
-    this->_buf_size = size;
-}
+/*     this->_buf = new char[size]; */
+/*     this->_buf_pos = 0; */
+/*     this->_buf_size = size; */
+/* } */
 
-void res::free_buf() {
-    if (this->_buf != nullptr) {
-        delete [] this->_buf;
-    }
+/* void res::free_buf() { */
+/*     if (this->_buf != nullptr) { */
+/*         delete [] this->_buf; */
+/*     } */
 
-    this->_buf = nullptr;
-    this->_buf_pos = 0;
-    this->_buf_size = 0;
-}
+/*     this->_buf = nullptr; */
+/*     this->_buf_pos = 0; */
+/*     this->_buf_size = 0; */
+/* } */
 
 std::string &res::version() {
     return this->_version;
@@ -95,11 +95,18 @@ void res::write_header() {
 }
 
 bool res::flush() { 
-    if (this->_buf_pos == 0) {
-        return false;
+    /* if (this->_buf_pos == 0) { */
+    /*     return false; */
+    /* } */
+    if (this->_security) {
+        /* SSL_write(this->_ssl, this->_buf, this->_buf_pos); */
+        SSL_write(this->_ssl, this->_buf.str().data(), this->_buf.str().size());
     }
-    ::write(this->_fd, this->_buf, this->_buf_pos);
-    this->_buf_pos = 0;
+    else {
+        /* ::write(this->_fd, this->_buf, this->_buf_pos); */
+        ::write(this->_fd, this->_buf.str().data(), this->_buf.str().size());
+    }
+    this->_buf.str(reinterpret_cast<const uint8_t *>(""));
 #ifdef DEBUG
     std::cout << "response flush" << std::endl;
 #endif
