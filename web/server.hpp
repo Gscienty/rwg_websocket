@@ -8,18 +8,10 @@
 #include "web/ctx.hpp"
 #include "websocket/websocket_startup.hpp"
 #include <thread>
-#include <sys/epoll.h>
-#include <unistd.h>
 #include <vector>
 #include <functional>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <csignal>
-#include <errno.h>
-#include <fcntl.h>
-#include <string.h>
 #include <map>
+#include <openssl/ssl.h>
 
 namespace rwg_web {
 
@@ -38,6 +30,10 @@ private:
     std::function<void (int)> _close_cb;
     std::function<void (rwg_web::req&, rwg_web::res&, std::function<void ()>)> _http_handler;
     rwg_websocket::startup _websocket;
+    bool _security;
+    char *_cert;
+    char *_pkey;
+    SSL_CTX *_ssl_ctx;
 
     void __close(int);
     void __thread_main(const int);
@@ -46,6 +42,8 @@ public:
     virtual ~server();
 
     virtual void in_event() override;
+    void use_security(bool use = true);
+    void init_ssl(const char *cert, const char *key);
     void listen(std::string, short);
     void http_handle(std::function<void (rwg_web::req &, rwg_web::res &, std::function<void ()>)>);
     void websocket_frame_handle(std::function<void (rwg_websocket::frame &, std::function<void ()>)>);
