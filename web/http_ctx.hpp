@@ -12,6 +12,7 @@ namespace rwg_web {
 class http_ctx {
 private:
     rwg_websocket::startup &_websocket;
+    bool _security;
 
     std::function<void (rwg_web::req &, rwg_web::res &, std::function<void ()>)> _http_handler;
     rwg_web::req _req;
@@ -23,7 +24,8 @@ public:
 
     rwg_web::req &req();
     rwg_web::res &res();
-    void run(int, std::function<void ()>);
+    void use_security(SSL *&, bool use = true);
+    void run(std::function<void ()>);
 };
 
 }

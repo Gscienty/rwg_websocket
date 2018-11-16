@@ -8,6 +8,7 @@ namespace rwg_web {
 http_ctx::http_ctx(rwg_websocket::startup &websocket,
                std::function<void (rwg_web::req &req, rwg_web::res &, std::function<void ()>)> handler)
     : _websocket(websocket)
+    , _security(false)
     , _http_handler(handler) {}
 
 http_ctx::~http_ctx() {}
@@ -16,12 +17,16 @@ rwg_web::req &http_ctx::req() { return this->_req; }
 
 rwg_web::res &http_ctx::res() { return this->_res; }
 
-void http_ctx::run(int fd, std::function<void ()> close_cb) {
+void http_ctx::use_security(SSL *&ssl, bool use) {
+    this->_security = use;
+    this->_req.use_security(ssl, use);
+}
+
+
+void http_ctx::run(std::function<void ()> close_cb) {
 #ifdef DEBUG
         std::cout << "session received message" << std::endl;
 #endif
-        this->_req.fd() = fd;
-        this->_res.fd() = fd;
         if (bool(this->_http_handler)) {
 #ifdef DEBUG
             std::cout << "execute start http_ctx init (parse)" << std::endl;
