@@ -1,5 +1,6 @@
 #include "web/req.hpp"
 #ifdef DEBUG 
+#include <fcntl.h>
 #include <iostream>
 #endif
 
@@ -24,13 +25,13 @@ req::~req() {
 }
 
 void req::__load() {
-#ifdef DEBUG
-    std::cout << "req load data" << std::endl;
-#endif
     this->_buf_pos = 0;
     ::ssize_t ret = 0;
 
     if (this->_security) {
+#ifdef DEBUG
+        std::cout << "req (tls) load data" << std::endl;
+#endif
         ret = ::SSL_read(this->_ssl, this->_buf, this->_buf_size);
         if (ret <= 0) {
             this->_buf_avail_size = 0;
@@ -53,25 +54,42 @@ void req::__load() {
 #endif
             return;
         }
-#ifdef DEBUG
-        else {
-            std::cout << "HERE:" << this->_buf << std::endl;
-        }
-#endif
     }
     else {
+#ifdef DEBUG
+        std::cout << "req load data" << std::endl;
+
+        auto flag = fcntl(this->_fd, F_GETFL, 0);
+        std::cout << this->_fd << ' ' << (flag & O_NONBLOCK) << std::endl;
+#endif
         ret = ::read(this->_fd, this->_buf, this->_buf_size);
 
         if (ret <= 0) {
             this->_buf_avail_size = 0;
             if (ret == 0) {
+#ifdef DEBUG
+            std::cout << "req load data interrupt" << std::endl;
+#endif
                 this->_stat = rwg_web::req_stat::req_stat_interrupt;
             }
             else if (ret != EAGAIN) {
+#ifdef DEBUG
+                std::cout << "req load data error" << std::endl;
+#endif
                 this->_stat = rwg_web::req_stat::req_stat_err;
             }
+#ifdef DEBUG
+            else {
+                std::cout << "req load need next" << std::endl;
+            }
+#endif
             return;
         }
+#ifdef DEBUG
+        else {
+            std::cout << this->_buf << std::endl;
+        }
+#endif
     }
 
     this->_buf_avail_size = ret;
