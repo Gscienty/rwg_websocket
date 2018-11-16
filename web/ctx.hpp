@@ -22,7 +22,8 @@ private:
 
     void __close();
 public:
-    ctx(std::function<void (rwg_web::req &, rwg_web::res &, std::function<void ()>)>,
+    ctx(int fd,
+        std::function<void (rwg_web::req &, rwg_web::res &, std::function<void ()>)>,
         rwg_websocket::startup &,
         std::function<void (int)>);
     virtual ~ctx();

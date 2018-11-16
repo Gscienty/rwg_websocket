@@ -5,18 +5,19 @@
 
 namespace rwg_web {
 
-ctx::ctx(std::function<void (rwg_web::req &, rwg_web::res &, std::function<void ()>)> http_handler,
+ctx::ctx(int fd,
+         std::function<void (rwg_web::req &, rwg_web::res &, std::function<void ()>)> http_handler,
          rwg_websocket::startup &websocket,
          std::function<void (int)> close_cb)
     : _security(false)
     , _sec_inited(false)
     , _ssl(NULL)
-    , _http_ctx(websocket, http_handler)
+    , _http_ctx(fd, websocket, http_handler)
     , _websocket(websocket)
     , _close_cb(close_cb)
     , _close_flag(false) {
-    this->_http_ctx.req().fd() = this->ep_event().data.fd;
-    this->_http_ctx.res().fd() = this->ep_event().data.fd;
+
+    this->ep_event().data.fd = fd;
 }
 
 ctx::~ctx() {
@@ -31,6 +32,9 @@ void ctx::__close() {
 
 void ctx::in_event() {
     if (this->_security && !this->_sec_inited) {
+#ifdef DEBUG
+        std::cout << "tls start handshake" << std::endl;
+#endif
         int ret = SSL_do_handshake(this->_ssl);
         switch (ret) {
         case 1:
@@ -61,8 +65,12 @@ void ctx::in_event() {
         return;
     }
     if (this->_security && !this->_sec_inited) {
+#ifdef DEBUG
+        std::cout << "tls handshake need next" << std::endl;
+#endif
         return;
     }
+
     if (this->_websocket.is_websocket(this->ep_event().data.fd)) {
         this->_websocket.run(this->ep_event().data.fd, std::bind(&rwg_web::ctx::__close, this));
     }
