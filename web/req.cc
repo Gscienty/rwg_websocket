@@ -57,10 +57,7 @@ void req::__load() {
     }
     else {
 #ifdef DEBUG
-        std::cout << "req load data" << std::endl;
-
-        auto flag = fcntl(this->_fd, F_GETFL, 0);
-        std::cout << this->_fd << ' ' << (flag & O_NONBLOCK) << std::endl;
+        std::cout << "req FD:" << this->_fd << std::endl;
 #endif
         ret = ::read(this->_fd, this->_buf, this->_buf_size);
 
@@ -85,11 +82,11 @@ void req::__load() {
 #endif
             return;
         }
-#ifdef DEBUG
-        else {
-            std::cout << this->_buf << std::endl;
-        }
-#endif
+/* #ifdef DEBUG */
+/*         else { */
+/*             std::cout << this->_buf << std::endl; */
+/*         } */
+/* #endif */
     }
 
     this->_buf_avail_size = ret;
@@ -268,7 +265,6 @@ void req::use_security(SSL *ssl, bool use) {
 }
 
 void req::reset() {
-    this->_fd = 0;
     this->_stat = rwg_web::req_stat::req_stat_header_method;
     if (this->_raw != nullptr) {
         delete [] this->_raw;
@@ -311,14 +307,14 @@ void req::parse() {
         return;
     }
     this->__parse_header();
-#ifdef DEBUG
-    std::cout << "receive http req header:" << std::endl;
-    std::cout << this->_method << ' ' << this->_uri << ' ' << this->_version << std::endl;
+/* #ifdef DEBUG */
+/*     std::cout << "receive http req header:" << std::endl; */
+/*     std::cout << this->_method << ' ' << this->_uri << ' ' << this->_version << std::endl; */
 
-    for (auto kv : this->_header_parameters) {
-        std::cout << kv.first << ": " << kv.second << std::endl;
-    }
-#endif
+/*     for (auto kv : this->_header_parameters) { */
+/*         std::cout << kv.first << ": " << kv.second << std::endl; */
+/*     } */
+/* #endif */
     if (this->_stat == rwg_web::req_stat::req_stat_header_end) {
         auto len_itr = this->_header_parameters.find("Content-Length");
         if (len_itr != this->_header_parameters.end()) {
