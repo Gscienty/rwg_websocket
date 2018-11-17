@@ -10,6 +10,7 @@
 #include <string>
 #include <functional>
 #include <openssl/ssl.h>
+#include <memory>
 
 #ifdef DEBUG
 #include <iostream>
@@ -17,13 +18,25 @@
 
 namespace rwg_websocket {
 
+class endpoint {
+private:
+    int _fd;
+    rwg_websocket::frame _frame;
+public:
+    virtual ~endpoint() {};
+
+    int &fd();
+    rwg_websocket::frame &frame();
+};
+
 class startup {
 private:
-    std::map<int, std::tuple<rwg_websocket::frame, std::map<std::string, std::string>>> _websocks;
-    std::function<void (rwg_websocket::frame& frame, std::function<void ()>)> _func;
+    std::map<int, std::unique_ptr<rwg_websocket::endpoint>> _websocks;
+    std::function<void (rwg_websocket::endpoint &, std::function<void ()>)> _func;
     std::function<bool (rwg_web::req&)> _handshake;
-    std::function<void (int)> _init;
-    std::function<void (int)> _remove;
+    std::function<void (rwg_websocket::endpoint& endpoint)> _init;
+    std::function<void (rwg_websocket::endpoint& endpoint)> _remove;
+    std::function<std::unique_ptr<rwg_websocket::endpoint> (rwg_web::req &)> _factory;
     bool _security;
 
     bool __is_websocket_handshake(rwg_web::req &);
@@ -35,13 +48,13 @@ public:
     void use_security(bool use = true);
     void run(int, std::function<void ()>);
     bool handshake(rwg_web::req &, rwg_web::res &, std::function<void ()>);
-    /* void add(int); */
     void remove(int);
     bool is_websocket(int);
-    void frame_handle(std::function<void (rwg_websocket::frame &, std::function<void ()>)>);
+    void frame_handle(std::function<void (rwg_websocket::endpoint &, std::function<void ()>)>);
     void handshake_handle(std::function<bool (rwg_web::req &)>);
-    void init_handle(std::function<void (int)>);
-    void remove_handle(std::function<void (int)>);
+    void init_handle(std::function<void (rwg_websocket::endpoint &)>);
+    void remove_handle(std::function<void (rwg_websocket::endpoint &)>);
+    void endpoint_factory(std::function<std::unique_ptr<rwg_websocket::endpoint> (rwg_web::req &)>);
     bool available() const;
 
 };

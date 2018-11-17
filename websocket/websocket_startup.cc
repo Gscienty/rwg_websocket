@@ -2,6 +2,10 @@
 
 namespace rwg_websocket {
 
+int &endpoint::fd() { return this->_fd; }
+
+rwg_websocket::frame &endpoint::frame() { return this->_frame; }
+
 startup::startup() : _security(false) {}
 
 bool startup::__is_websocket_handshake(rwg_web::req &req) {
@@ -53,34 +57,33 @@ void startup::__accept(rwg_web::req& req, rwg_web::res& res) {
         rwg_util::base64_encode(sha1_key.c_str(), sha1_key.size());
     res.header_parameters()["Sec-WebSocket-Version"] = "13";
 
-#ifdef DEBUG
-    std::cout << "websocket handshake response" << std::endl;
+/* #ifdef DEBUG */
+/*     std::cout << "websocket handshake response" << std::endl; */
 
-    std::cout << res.version() << ' ' << res.status_code() << ' ' << res.description() << std::endl;
-    for (auto kv : res.header_parameters()) {
-        std::cout << kv.first << ": " << kv.second << std::endl;
-    }
-#endif
+/*     std::cout << res.version() << ' ' << res.status_code() << ' ' << res.description() << std::endl; */
+/*     for (auto kv : res.header_parameters()) { */
+/*         std::cout << kv.first << ": " << kv.second << std::endl; */
+/*     } */
+/* #endif */
 
     res.write_header();
     res.flush();
 
-    this->_websocks.insert(std::make_pair(req.fd(), std::make_tuple(rwg_websocket::frame(), std::map<std::string, std::string>())));
-    auto &c_ws = this->_websocks[req.fd()];
-    std::get<1>(c_ws)["Key"] = res.header_parameters()["Sec-WebSocket-Accept"];
-    std::get<1>(c_ws)["Version"] = res.header_parameters()["Sec-WebSocket-Version"];
-    std::get<1>(c_ws)["URI"] = req.uri();
+    std::unique_ptr<rwg_websocket::endpoint> endpoint_ptr = this->_factory(req);
+
+    endpoint_ptr->fd() = req.fd();
+    endpoint_ptr->frame().fd() = req.fd();
 
     if (this->_security) {
-        std::get<0>(c_ws).use_security();
-
-        std::get<0>(c_ws).fd() = req.fd();
-        std::get<0>(c_ws).ssl() = req.ssl();
+        endpoint_ptr->frame().use_security();
+        endpoint_ptr->frame().ssl() = req.ssl();
     }
 
     if (bool(this->_init)) {
-        this->_init(req.fd());
+        this->_init(*endpoint_ptr);
     }
+
+    this->_websocks[req.fd()] = std::move(endpoint_ptr);
 }
 
 void startup::__reject(rwg_web::req&, rwg_web::res& res) {
@@ -106,22 +109,23 @@ void startup::run(int fd, std::function<void ()> close_cb) {
         close_cb();
     }
 
-    auto &frame = std::get<0>(this->_websocks[fd]);
+    auto &c_ws = this->_websocks[fd];
+
     bool do_next = true;
     while (do_next) {
-        rwg_websocket::frame_parse_stat remember_stat = frame.stat();
+        rwg_websocket::frame_parse_stat remember_stat = c_ws->frame().stat();
 
-        frame.parse();
+        c_ws->frame().parse();
 
-        switch (frame.stat()) {
+        switch (c_ws->frame().stat()) {
         case rwg_websocket::fpstat_end:
             if (bool(this->_func)) {
-                this->_func(frame, close_cb);
+                this->_func(*c_ws, close_cb);
             }
-            frame.reset();
+            c_ws->frame().reset();
             break;
         case rwg_websocket::fpstat_next:
-            frame.stat() = remember_stat;
+            c_ws->frame().stat() = remember_stat;
             do_next = false;
             break;
         case rwg_websocket::fpstat_err:
@@ -149,7 +153,7 @@ bool startup::handshake(rwg_web::req& req, rwg_web::res& res, std::function<void
         return false;
     }
 
-    if (this->available() && bool(this->_handshake) && this->_handshake(req)) {
+    if (this->available() && bool(this->_handshake) && bool(this->_factory) && this->_handshake(req)) {
         this->__accept(req, res);
     }
     else {
@@ -168,10 +172,10 @@ bool startup::handshake(rwg_web::req& req, rwg_web::res& res, std::function<void
 void startup::remove(int fd) {
     auto itr = this->_websocks.find(fd);
     if (itr != this->_websocks.end()) {
-        this->_websocks.erase(itr);
         if (bool(this->_remove)) {
-            this->_remove(fd);
+            this->_remove(*itr->second);
         }
+        this->_websocks.erase(itr);
     }
 }
 
@@ -179,7 +183,7 @@ bool startup::is_websocket(int fd) {
     return this->_websocks.find(fd) != this->_websocks.end();
 }
 
-void startup::frame_handle(std::function<void (rwg_websocket::frame &, std::function<void ()>)> func) {
+void startup::frame_handle(std::function<void (rwg_websocket::endpoint &, std::function<void ()>)> func) {
     this->_func = func;
 }
 
@@ -187,12 +191,16 @@ void startup::handshake_handle(std::function<bool (rwg_web::req &)> handler) {
     this->_handshake = handler;
 }
 
-void startup::init_handle(std::function<void (int)> handler) {
+void startup::init_handle(std::function<void (rwg_websocket::endpoint &)> handler) {
     this->_init = handler;
 }
 
-void startup::remove_handle(std::function<void (int)> handler) {
+void startup::remove_handle(std::function<void (rwg_websocket::endpoint &)> handler) {
     this->_remove = handler;
+}
+
+void startup::endpoint_factory(std::function<std::unique_ptr<rwg_websocket::endpoint> (rwg_web::req &)> factory) {
+    this->_factory = factory;
 }
 
 bool startup::available() const {
