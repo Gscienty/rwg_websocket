@@ -11,6 +11,7 @@ namespace rwg_web {
 
 class http_ctx {
 private:
+    int _fd;
     rwg_websocket::startup &_websocket;
     bool _security;
 

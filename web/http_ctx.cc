@@ -8,10 +8,10 @@ namespace rwg_web {
 http_ctx::http_ctx(int fd,
                    rwg_websocket::startup &websocket,
                    std::function<void (rwg_web::req &req, rwg_web::res &, std::function<void ()>)> handler)
-    : _websocket(websocket)
+    : _fd(fd)
+    , _websocket(websocket)
     , _security(false)
     , _http_handler(handler) {
-
     this->_req.fd() = fd;
     this->_res.fd() = fd;
 }
