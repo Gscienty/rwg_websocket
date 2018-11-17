@@ -7,8 +7,12 @@
 #include <iostream>
 
 int main() {
-    auto websock_handle = [] (rwg_websocket::frame &frame, std::function<void ()>) -> void {
-        std::string val(frame.payload().begin(), frame.payload().end());
+    auto websock_endpoint_factory = [] (rwg_web::req &) -> std::unique_ptr<rwg_websocket::endpoint> {
+        std::unique_ptr<rwg_websocket::endpoint> ret(new rwg_websocket::endpoint());
+        return ret;
+    };
+    auto websock_handle = [] (rwg_websocket::endpoint &endpoint, std::function<void ()>) -> void {
+        std::string val(endpoint.frame().payload().begin(), endpoint.frame().payload().end());
         std::cout << val << std::endl;
     };
 
@@ -36,7 +40,8 @@ int main() {
     };
 
     server.http_handle(web_handle);
-    server.websocket_handshake_handle([] (rwg_web::req&) -> bool { return true; });
+    server.websocket_endpoint_factory(websock_endpoint_factory);
+    server.websocket_handshake_handle([] (rwg_web::req &) -> bool { return true; });
     server.websocket_frame_handle(websock_handle);
 
     server.start();
