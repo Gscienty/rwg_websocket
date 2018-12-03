@@ -1,4 +1,5 @@
 #include "web/server.hpp"
+#include "util/debug.hpp"
 #include <sys/epoll.h>
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -7,7 +8,6 @@
 #include <unistd.h>
 #ifdef DEBUG
 #include <errno.h>
-#include <iostream>
 #endif
 
 namespace rwg_web {
@@ -38,9 +38,7 @@ server::~server() {
 }
 
 void server::__close(int fd) {
-#ifdef DEBUG
-    std::cout << "close event" << std::endl;
-#endif
+    info("close event");
     if (bool(this->_close_cb)) {
         this->_close_cb(fd);
     }
@@ -60,11 +58,11 @@ void server::__thread_main(const int epfd) {
 #ifdef DEBUG
         if (events_count != -1) {
             if (events_count > 0) {
-                std::cout << "thread[" << epfd << "]: server received events: [" << events_count << ']' << std::endl;
+                info("thread[%d]: server received events: %d", epfd, events_count);
             }
         }
         else {
-            std::cout << ::strerror(errno) << std::endl;
+            error("%s", ::strerror(errno));
         }
 #endif
 
@@ -72,26 +70,18 @@ void server::__thread_main(const int epfd) {
             auto& event = events[i];
 
             if (event.events & EPOLLRDHUP) {
-#ifdef DEBUG
-                std::cout << "fd[" << event.data.fd << "]: remote close" << std::endl;
-#endif
+                info("fd[%d]: remote close", event.data.fd);
                 this->__close(event.data.fd);
             }
             else if (event.events & EPOLLIN) {
-#ifdef DEBUG
-                std::cout << "fd[" << event.data.fd << "]: epoll in" << std::endl;
-#endif
+                info("fd[%d]: epoll in", event.data.fd);
                 auto action_itr = this->_fd_in_events.find(event.data.fd);
                 if (action_itr != this->_fd_in_events.end()) {
-#ifdef DEBUG
-                    std::cout << "find action" << std::endl;
-#endif
+                    info("fd[%d]: finded action", event.data.fd);
                     action_itr->second->in_event();
                 }
                 else {
-#ifdef DEBUG
-                    std::cout << "cannot find action" << std::endl;
-#endif
+                    warn("fd[%d]: cannot find action", event.data.fd);
                 }
             }
         }
@@ -99,33 +89,24 @@ void server::__thread_main(const int epfd) {
 }
 
 void server::in_event() {
-#ifdef DEBUG
-    std::cout << "server[" << this->ep_event().data.fd << "] accept" << std::endl;
-#endif
+    info("server[%d]: accept", this->ep_event().data.fd);
     ::sockaddr_in c_addr;
     ::socklen_t c_addr_len;
     int c_fd = ::accept(this->ep_event().data.fd, reinterpret_cast<::sockaddr *>(&c_addr), &c_addr_len);
 
     // set nonblock
-#ifdef DEBUG
-    std::cout << "set fd [" << c_fd << "] nonblock" << std::endl;
-#endif
+    info("client[%d]: set nonblock", c_fd);
     int c_flags = ::fcntl(c_fd, F_GETFL, 0);
     if (c_flags == -1) {
         c_flags = 0;
     }
     if (::fcntl(c_fd, F_SETFL, c_flags | O_NONBLOCK) < 0) {
-#ifdef DEBUG
-        std::cout << "set nonblock error" << std::endl;
-#endif
+        warn("client[%d]: set nonblock error", c_fd);
     }
 
     int epfd = this->_eps[this->_loop_itr];
     this->_loop_itr = (this->_loop_itr + 1) % this->_eps.size();
-
-#ifdef DEBUG
-    std::cout << "remote IP: [" << c_addr.sin_addr.s_addr << "]; port: [" << c_addr.sin_port << "]; client[" << c_fd << "] added to epoll[" << epfd << "]" << std::endl;
-#endif
+    info("client[%d]: is added to epoll[%d]", c_fd, epfd);
 
     auto ctx = new rwg_web::ctx(c_fd,
                                 this->_http_handler,
@@ -134,9 +115,7 @@ void server::in_event() {
 
     if (this->_security) {
         if (!ctx->use_security(this->_ssl_ctx)) {
-#ifdef DEBUG
-            std::cout << "tls handshake failed" << std::endl;
-#endif
+            warn("client[%d]: tls handshake failed", c_fd);
             delete ctx;
             close(c_fd);
             return;
@@ -162,9 +141,7 @@ void server::init_ssl(const char *cert, const char *key) {
 
     this->_ssl_ctx = SSL_CTX_new(TLSv1_2_server_method());
     if (!this->_ssl_ctx) {
-#ifdef DEBUG
-        std::cout << "SSL_CTX_new: FAILED" << std::endl;
-#endif
+        error("SSL_CTX_new: failed");
     }
     SSL_CTX_set_options(this->_ssl_ctx,
                         SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
@@ -174,44 +151,37 @@ void server::init_ssl(const char *cert, const char *key) {
     SSL_CTX_set_ecdh_auto(this->_ssl_ctx, 1);
 
     if (SSL_CTX_use_certificate_file(this->_ssl_ctx, cert, SSL_FILETYPE_PEM) != 1) {
-#ifdef DEBUG
-        std::cout << "SSL_CTX_use_certificate_file: FAILED" << std::endl;
-#endif
+        error("SSL_CTX_use_sertificate_file: failed");
     }
 
     if (SSL_CTX_use_PrivateKey_file(this->_ssl_ctx, key, SSL_FILETYPE_PEM) != 1) {
-#ifdef DEBUG
-        std::cout << "SSL_CTX_use_PrivateKey_file: FAILED" << std::endl;
-#endif
+        error("SSL_CTX_use_PrivateKey_file: failed");
     }
 
     if (SSL_CTX_check_private_key(this->_ssl_ctx) != 1) {
-#ifdef DEBUG
-        std::cout << "SSL_CTX_check_private_key: FAILED" << std::endl;
-#endif
+        error("SSL_CTX_check_private_key: failed");
     }
 }
 
 void server::listen(std::string ip, short port) {
-    int sfd = ::socket(AF_INET, SOCK_STREAM, 0);
-#ifdef DEBUG
-    std::cout << "create socket[" << sfd << "]" << std::endl;
-#endif
+    // TODO add reuse && bind/listen check result
+    int s_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    info("created socket[%d]", s_fd);
 
     ::sockaddr_in s_addr;
     s_addr.sin_family = AF_INET;
     s_addr.sin_addr.s_addr = ::inet_addr(ip.c_str());
     s_addr.sin_port = ::htons(port);
 
-    ::bind(sfd, reinterpret_cast<::sockaddr *>(&s_addr), sizeof(::sockaddr_in));
-    ::listen(sfd, this->_procs_count * this->_epsize);
+    ::bind(s_fd, reinterpret_cast<::sockaddr *>(&s_addr), sizeof(::sockaddr_in));
+    ::listen(s_fd, this->_procs_count * this->_epsize);
 
     this->ep_event().events = EPOLLIN;
-    this->ep_event().data.fd = sfd;
+    this->ep_event().data.fd = s_fd;
 
-    this->_fd_in_events[sfd] = this;
+    this->_fd_in_events[s_fd] = this;
 
-    ::epoll_ctl(this->_main_epfd, EPOLL_CTL_ADD, sfd, &this->ep_event());
+    ::epoll_ctl(this->_main_epfd, EPOLL_CTL_ADD, s_fd, &this->ep_event());
 }
 
 void server::http_handle(std::function<void (rwg_web::req &, rwg_web::res &, std::function<void ()>)> handler) {
