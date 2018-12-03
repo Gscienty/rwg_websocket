@@ -1,4 +1,5 @@
 #include "websocket/websocket_startup.hpp"
+#include "util/debug.hpp"
 
 namespace rwg_websocket {
 
@@ -11,29 +12,21 @@ startup::startup() : _security(false) {}
 bool startup::__is_websocket_handshake(rwg_web::req &req) {
     auto upgrade = req.header_parameters().find("Upgrade");
     if (upgrade == req.header_parameters().end()) {
-#ifdef DEBUG
-        std::cout << "not found parameter: Upgrade" << std::endl;
-#endif
+        warn("ws_startup[%d]: not found parameter: Upgrade", req.fd());
         return false;
     }
     if (upgrade->second != "websocket") {
-#ifdef DEBUG
-        std::cout << "parameter Upgrade's value not \"websocket\"" << std::endl;
-#endif
+        warn("ws_startup[%d]: parameter Upgrade's value not \"websocket\"", req.fd());
         return false;
     }
 
     auto connection = req.header_parameters().find("Connection");
     if (connection == req.header_parameters().end()) {
-#ifdef DEBUG
-        std::cout << "not found parameter: Connection" << std::endl;
-#endif
+        warn("ws_startup[%d]： not found parameter: Connection", req.fd());
         return false;
     }
     if (connection->second != "Upgrade") {
-#ifdef DEBUG
-        std::cout << "parameter Connection's value not \"Upgrade\"" << std::endl;
-#endif
+        warn("ws_startup[%d]: parameter Connection's value not \"Upgrade\"", req.fd());
         return false;
     }
 
@@ -102,10 +95,9 @@ void startup::use_security(bool use) {
 }
 
 void startup::run(int fd, std::function<void ()> close_cb) {
-#ifdef DEBUG
-    std::cout << "websocket startup" << std::endl;
-#endif
+    info("ws_startup[%d]: enter websocket startup", fd);
     if (this->_websocks.find(fd) == this->_websocks.end()) {
+        warn("ws_startup[%d]: not found online ws", fd);
         close_cb();
     }
 
@@ -129,16 +121,12 @@ void startup::run(int fd, std::function<void ()> close_cb) {
             do_next = false;
             break;
         case rwg_websocket::fpstat_err:
-#ifdef DEBUG
-            std::cout << "websocket parse error" << std::endl;
-#endif
+            warn("ws_startup[%d]: parse error", fd);
             do_next = false;
             close_cb();
             break;
         case rwg_websocket::fpstat_interrupt:
-#ifdef DEBUG
-            std::cout << "websocket interrupt" << std::endl;
-#endif
+            warn("ws_startup[%d]: interrupt", fd);
             do_next = false;
             close_cb();
             break;
