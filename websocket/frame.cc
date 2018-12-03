@@ -1,9 +1,7 @@
 #include "websocket/frame.hpp"
+#include "util/debug.hpp"
 #include <openssl/ssl.h>
 #include <sstream>
-#ifdef DEBUG
-#include <iostream>
-#endif
 
 namespace rwg_websocket {
 frame::frame()
@@ -21,29 +19,22 @@ frame::frame()
 std::uint8_t frame::__read_byte() {
     std::uint8_t c;
     if (this->_security) {
-#ifdef DEBUG
         if (this->_ssl == nullptr) {
-            std::cout << "ssl is NULL" << std::endl;
+            error("ws_frame[%d]: ssl is NULL", this->_fd);
+            return 0;
         }
-#endif
         ::ssize_t ret = ::SSL_read(this->_ssl, &c, 1);
         if (ret <= 0) {
             if (ret == 0) {
-#ifdef DEBUG
-                std::cout << "tls read error (part 1)" << std::endl;
-#endif
+                error("ws_frame[%d]: tls read error (part 1)", this->_fd);
                 this->_stat = rwg_websocket::fpstat_interrupt;
             }
             else if (SSL_get_error(this->_ssl, ret) != SSL_ERROR_WANT_READ) {
-#ifdef DEBUG
-                std::cout << "tls read error (part 2)" << std::endl;
-#endif
+                error("ws_frame[%d]: tls read error (part 2)", this->_fd);
                 this->_stat = rwg_websocket::fpstat_interrupt;
             }
             else {
-#ifdef DEBUG
-                std::cout << "tls read need next" << std::endl;
-#endif
+                info("ws_frame[%d]: tls need read next", this->_fd);
                 this->_stat = rwg_websocket::fpstat_next;
             }
         }
@@ -162,9 +153,7 @@ void frame::write() {
 }
 
 void frame::parse() {
-#ifdef DEBUG
-    std::cout << "websocket frame parsing" << std::endl;
-#endif
+    info("ws_frame[%d]: parsing", this->_fd);
     while (this->_stat != rwg_websocket::fpstat_end &&
            this->_stat != rwg_websocket::fpstat_err &&
            this->_stat != rwg_websocket::fpstat_interrupt &&
@@ -174,9 +163,7 @@ void frame::parse() {
             this->_stat == rwg_websocket::fpstat_err ||
             this->_stat == rwg_websocket::fpstat_end ||
             this->_stat == rwg_websocket::fpstat_next) {
-#ifdef DEBUG
-            std::cout << "websocket farame parsing need next" << std::endl;
-#endif
+            info("ws_frame[%d]: parsing need next", this->_fd);
             break;
         }
 
@@ -190,9 +177,7 @@ void frame::parse() {
             else {
                 this->_fin_flag = false;
             }
-#ifdef DEBUG
-            std::cout << "fin flag: " << this->_fin_flag << std::endl;
-#endif
+            info("ws_frame[%d]: fin flag [%d]", this->_fd, this->_fin_flag);
             this->_opcode = static_cast<rwg_websocket::op>(c & 0x0F);
             this->_stat = rwg_websocket::fpstat_second_byte;
             break;
@@ -203,9 +188,7 @@ void frame::parse() {
             else {
                 this->_mask = false;
             }
-#ifdef DEBUG
-            std::cout << "mask flag:" << this->_mask << std::endl;
-#endif
+            info("ws_frame[%d]: mask flag: [%d]", this->_fd, this->_mask);
             this->_payload_len = (c & 0x7F);
             if (this->_payload_len == 126) {
                 this->_payload_len = 0;
