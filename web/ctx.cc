@@ -1,7 +1,5 @@
 #include "web/ctx.hpp"
-#ifdef DEBUG
-#include <iostream>
-#endif
+#include "util/debug.hpp"
 
 namespace rwg_web {
 
@@ -32,16 +30,12 @@ void ctx::__close() {
 
 void ctx::in_event() {
     if (this->_security && !this->_sec_inited) {
-#ifdef DEBUG
-        std::cout << "tls start handshake" << std::endl;
-#endif
+        info("ctx[%d]: tls start handshake", this->ep_event().data.fd);
         int ret = SSL_do_handshake(this->_ssl);
         switch (ret) {
         case 1:
             this->_sec_inited = true;
-#ifdef DEBUG
-            std::cout << "tls handshake completed" << std::endl;
-#endif
+            info("ctx[%d]: tls handshake completed", this->ep_event().data.fd);
             break;
         case 0:
             this->_close_flag = true;
@@ -65,9 +59,7 @@ void ctx::in_event() {
         return;
     }
     if (this->_security && !this->_sec_inited) {
-#ifdef DEBUG
-        std::cout << "tls handshake need next" << std::endl;
-#endif
+        info("ctx[%d]: tls handshake need next", this->ep_event().data.fd);
         return;
     }
 
@@ -87,9 +79,7 @@ bool ctx::use_security(SSL_CTX *ctx) {
     this->_security = true;
     this->_ssl = SSL_new(ctx);
     if (SSL_set_fd(this->_ssl, this->ep_event().data.fd) != 1) {
-#ifdef DEBUG
-        std::cout << "SSL_CTX_set_fd: FAILED" << std::endl;
-#endif
+        info("ctx[%d]: SSL_CTX_set_fd failed", this->ep_event().data.fd);
     }
     SSL_set_accept_state(this->_ssl);
 
