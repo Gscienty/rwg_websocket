@@ -1,4 +1,5 @@
 #include "web/res.hpp"
+#include "util/debug.hpp"
 
 namespace rwg_web {
 
@@ -107,9 +108,7 @@ bool res::flush() {
         ::write(this->_fd, this->_buf.str().data(), this->_buf.str().size());
     }
     this->_buf.str(reinterpret_cast<const uint8_t *>(""));
-#ifdef DEBUG
-    std::cout << "response flush" << std::endl;
-#endif
+    info("res[%d]: flush", this->_fd);
     return true;
 }
 
