@@ -1,7 +1,7 @@
 #include "web/req.hpp"
+#include "util/debug.hpp"
 #ifdef DEBUG 
 #include <fcntl.h>
-#include <iostream>
 #endif
 
 namespace rwg_web {
@@ -29,80 +29,59 @@ void req::__load() {
     ::ssize_t ret = 0;
 
     if (this->_security) {
-#ifdef DEBUG
-        std::cout << "req (tls) load data" << std::endl;
-#endif
+        info("req[%d]: tls load data", this->_fd);
         ret = ::SSL_read(this->_ssl, this->_buf, this->_buf_size);
         if (ret <= 0) {
             this->_buf_avail_size = 0;
             if (ret == 0) {
-#ifdef DEBUG
-                std::cout << "tls read error (part 1)" << std::endl;
-#endif
+                error("req[%d]: tls read error (part 1)", this->_fd);
                 this->_stat = rwg_web::req_stat::req_stat_err;
             }
             else if (SSL_get_error(this->_ssl, ret) != SSL_ERROR_WANT_READ) {
-#ifdef DEBUG
-                std::cout << "tls read error (part 2)" << std::endl;
-#endif
+                error("req[%d]: tls read error (part 2)", this->_fd);
                 this->_stat = rwg_web::req_stat::req_stat_err;
             }
 #ifdef DEBUG
             else {
-                std::cout << "tls read need next" << std::endl;
+                info("req[%d]: tls read need next", this->_fd);
             }
 #endif
             return;
         }
     }
     else {
-#ifdef DEBUG
-        std::cout << "req FD:" << this->_fd << std::endl;
-#endif
+        info("req[%d]: tcp load data", this->_fd);
         ret = ::read(this->_fd, this->_buf, this->_buf_size);
 
         if (ret <= 0) {
             this->_buf_avail_size = 0;
             if (ret == 0) {
-#ifdef DEBUG
-            std::cout << "req load data interrupt" << std::endl;
-#endif
+                warn("req[%d]: load data interrupt", this->_fd);
                 this->_stat = rwg_web::req_stat::req_stat_interrupt;
             }
             else if (ret != EAGAIN) {
-#ifdef DEBUG
-                std::cout << "req load data error" << std::endl;
-#endif
+                error("req[%d]: load data error", this->_fd);
                 this->_stat = rwg_web::req_stat::req_stat_err;
             }
 #ifdef DEBUG
             else {
-                std::cout << "req load need next" << std::endl;
+                info("req[%d]: load data need next", this->_fd);
             }
 #endif
             return;
         }
-/* #ifdef DEBUG */
-/*         else { */
-/*             std::cout << this->_buf << std::endl; */
-/*         } */
-/* #endif */
     }
 
     this->_buf_avail_size = ret;
 }
 
 void req::__parse_header() {
-#ifdef DEBUG
-    std::cout << "request parse header" << std::endl;
-#endif
+    info("req[%d]: parsing header", this->_fd);
     if (this->_stat == rwg_web::req_stat::req_stat_end ||
         this->_stat == rwg_web::req_stat::req_stat_interrupt ||
         this->_stat == rwg_web::req_stat::req_stat_header_end ||
         this->_stat == rwg_web::req_stat::req_stat_err) {
-#ifdef DEBUG
-        std::cout << "request parsed header end" << std::endl;
-#endif
+        info("req[%d]: parsed header", this->_fd);
         return;
     }
 
@@ -163,9 +142,7 @@ void req::__parse_header() {
                 this->_stat = rwg_web::req_stat::req_stat_header_param;
             }
             else {
-#ifdef DEBUG
-                std::cout << "parse req header error" << std::endl;
-#endif
+                error("req[%d]: parse header error", this->_fd);
                 this->_stat = rwg_web::req_stat::req_stat_err;
             }
             break;
@@ -214,9 +191,7 @@ void req::__parse_header() {
         case rwg_web::req_stat::req_stat_header_param_end3:
             c = this->_buf[this->_buf_pos++];
             if (c == '\n') {
-#ifdef DEBUG
-                std::cout << "req completed header" << std::endl;
-#endif
+                info("req[%d]: completed parse header", this->_fd);
                 this->_stat = rwg_web::req_stat::req_stat_header_end;
             }
             else {
@@ -258,9 +233,7 @@ void req::__parse_raw() {
 
 void req::use_security(SSL *ssl, bool use) {
     this->_security = use;
-#ifdef DEBUG
-    std::cout << "req use security [" << this->_security << "]" << std::endl;
-#endif
+    info("req[%d] use security [%d]", this->_fd, this->_security);
     this->_ssl = ssl;
 }
 
