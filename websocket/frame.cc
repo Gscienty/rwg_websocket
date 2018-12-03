@@ -26,11 +26,11 @@ std::uint8_t frame::__read_byte() {
         ::ssize_t ret = ::SSL_read(this->_ssl, &c, 1);
         if (ret <= 0) {
             if (ret == 0) {
-                error("ws_frame[%d]: tls read error (part 1)", this->_fd);
+                warn("ws_frame[%d]: tls read error (part 1)", this->_fd);
                 this->_stat = rwg_websocket::fpstat_interrupt;
             }
             else if (SSL_get_error(this->_ssl, ret) != SSL_ERROR_WANT_READ) {
-                error("ws_frame[%d]: tls read error (part 2)", this->_fd);
+                warn("ws_frame[%d]: tls read error (part 2)", this->_fd);
                 this->_stat = rwg_websocket::fpstat_interrupt;
             }
             else {
