@@ -1,7 +1,5 @@
 #include "web/http_ctx.hpp"
-#ifdef DEBUG
-#include <iostream>
-#endif
+#include "util/debug.hpp"
 
 namespace rwg_web {
 
@@ -29,13 +27,9 @@ void http_ctx::use_security(SSL *&ssl, bool use) {
 }
 
 void http_ctx::run(std::function<void ()> close_cb) {
-#ifdef DEBUG
-        std::cout << "session received message" << std::endl;
-#endif
+        info("http_ctx[%d]: session received message", this->_fd);
         if (bool(this->_http_handler)) {
-#ifdef DEBUG
-            std::cout << "execute start http_ctx init (parse)" << std::endl;
-#endif
+            info("http_ctx[%d]: parsing", this->_fd);
             this->_req.alloc_buf(512);
             this->_req.parse();
             if (this->_req.stat() == rwg_web::req_stat::req_stat_err ||
@@ -43,17 +37,16 @@ void http_ctx::run(std::function<void ()> close_cb) {
                 close_cb();
             }
             else if (this->_req.stat() == rwg_web::req_stat::req_stat_end) {
-#ifdef DEBUG
-                std::cout << "execute start http_ctx run handle" << std::endl;
-#endif
-                /* this->_res.alloc_buf(512); */
+                info("http_ctx[%d]: run handle", this->_fd);
                 if (!this->_websocket.handshake(this->_req, this->_res, close_cb)) {
-#ifdef DEBUG
-                    std::cout << "normal http" << std::endl;
-#endif
+                    info("http_ctx[%d]: normal http", this->_fd);
                     this->_http_handler(this->_req, this->_res, close_cb);
                 }
-                /* this->_res.free_buf(); */
+#ifdef DEBUG
+                else {
+                    info("http_ctx[%d]: web socket handshake", this->_fd);
+                }
+#endif
 
                 this->_req.reset();
                 this->_res.reset();
