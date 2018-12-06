@@ -52,10 +52,6 @@ std::uint8_t frame::__read_byte() {
     return c;
 }
 
-void frame::use_security(bool use) {
-    this->_security = use;
-}
-
 bool& frame::fin_flag() { return this->_fin_flag; }
 
 rwg_websocket::op &frame::opcode() { return this->_opcode; }
@@ -65,7 +61,10 @@ std::basic_string<std::uint8_t> &frame::payload() { return this->_payload; }
 std::basic_string<std::uint8_t> &frame::masking_key() { return this->_masking_key; }
 
 int &frame::fd() { return this->_fd; }
+
 SSL *&frame::ssl() { return this->_ssl; }
+
+bool &frame::security() { return this->_security; }
 
 rwg_websocket::frame_parse_stat &frame::stat() { return this->_stat; }
 

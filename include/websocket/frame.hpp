@@ -59,7 +59,7 @@ public:
     std::basic_string<std::uint8_t> &masking_key();
     int &fd();
     SSL *&ssl();
-    void use_security(bool use = true);
+    bool &security();
     rwg_websocket::frame_parse_stat &stat();
     void reset();
     void write();
