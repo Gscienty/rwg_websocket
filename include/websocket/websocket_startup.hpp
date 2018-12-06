@@ -27,6 +27,8 @@ public:
     int &fd();
     SSL *&ssl();
     rwg_websocket::frame &frame();
+
+    rwg_websocket::frame response();
 };
 
 class startup {

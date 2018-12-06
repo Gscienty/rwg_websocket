@@ -9,6 +9,17 @@ SSL *&endpoint::ssl() { return this->_frame.ssl(); }
 
 rwg_websocket::frame &endpoint::frame() { return this->_frame; }
 
+rwg_websocket::frame endpoint::response() {
+    rwg_websocket::frame ret;
+
+    ret.fd() = this->fd();
+    ret.ssl() = this->ssl();
+    ret.security() = this->_frame.security();
+    ret.mask() = false;
+
+    return ret;
+}
+
 startup::startup() : _security(false) {}
 
 bool startup::__is_websocket_handshake(rwg_web::req &req) {
@@ -70,7 +81,7 @@ void startup::__accept(rwg_web::req& req, rwg_web::res& res) {
     endpoint_ptr->frame().fd() = req.fd();
 
     if (this->_security) {
-        endpoint_ptr->frame().use_security();
+        endpoint_ptr->frame().security() = true;
         endpoint_ptr->frame().ssl() = req.ssl();
     }
 
@@ -102,12 +113,8 @@ void startup::__close(rwg_websocket::endpoint &endpoint, std::function<void ()> 
 
 void startup::__ping_pong(rwg_websocket::endpoint &endpoint) {
     if (endpoint.frame().opcode() == rwg_websocket::op::op_ping) {
-        rwg_websocket::frame pong_frame;
+        rwg_websocket::frame pong_frame = endpoint.response();
 
-        pong_frame.fd() = endpoint.fd();
-        pong_frame.ssl() = endpoint.ssl();
-        pong_frame.use_security(this->_security);
-        pong_frame.mask() = false;
         pong_frame.opcode() = rwg_websocket::op::op_pong;
 
         pong_frame.write();
@@ -229,12 +236,9 @@ void startup::pong_handle(std::function<void (rwg_websocket::endpoint &)> handle
 }
 
 void startup::ping(rwg_websocket::endpoint &endpoint) {
-    rwg_websocket::frame ping_frame;
-    ping_frame.fd() = endpoint.fd();
-    ping_frame.mask() = false;
+    rwg_websocket::frame ping_frame = endpoint.response();
+
     ping_frame.opcode() = rwg_websocket::op::op_ping;
-    ping_frame.ssl() = endpoint.ssl();
-    ping_frame.use_security(this->_security);
 
     ping_frame.write();
 }
