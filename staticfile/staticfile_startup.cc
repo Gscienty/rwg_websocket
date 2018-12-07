@@ -1,4 +1,5 @@
 #include "staticfile/staticfile_startup.hpp"
+#include "util/debug.hpp"
 
 namespace rwg_staticfile {
 
@@ -44,26 +45,22 @@ std::string startup::__realpath(std::string uri) {
 
 bool startup::run(rwg_web::req& req, rwg_web::res& res) {
     if (req.uri().find(this->_start) != 0) {
-#ifdef DEBUG
-        std::cout << "staticfile startup not match start" << std::endl;
-#endif
+        info("staticfile[%d]: not match start", req.fd());
         return false;
     }
 
     std::string realpath = this->__realpath(req.uri());
-#ifdef DEBUG
-    std::cout << "staticfile real path: " << realpath << std::endl;
-#endif
+    info("staticfile[%d]: staticfile real path: %s", req.fd(), realpath.c_str());
     if (::access(realpath.c_str(), F_OK) != 0 || ::access(realpath.c_str(), R_OK) != 0) {
-#ifdef DEBUG
-        std::cout << "staticfile not found" << std::endl;
-#endif
+        info("staticfile[%d]: not found", req.fd());
         this->__notfound(req, res);
         return true;
     }
 
     int fd = ::open(realpath.c_str(), O_RDONLY);
+    info("staticfile[%d]: open file fd[%d]", req.fd(), fd);
     std::size_t content_length = this->__content_length(fd);
+    info("staticfile[%d]: file size %lu bytes", req.fd(), content_length);
 
     res.description() = "OK";
     res.status_code() = 200;
