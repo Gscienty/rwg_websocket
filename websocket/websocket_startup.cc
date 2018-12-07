@@ -3,7 +3,9 @@
 
 namespace rwg_websocket {
 
-int &endpoint::fd() { return this->_fd; }
+int &endpoint::fd() { return this->_frame.fd(); }
+
+SSL *&endpoint::ssl() { return this->_frame.ssl(); }
 
 rwg_websocket::frame &endpoint::frame() { return this->_frame; }
 
@@ -90,6 +92,31 @@ void startup::__reject(rwg_web::req&, rwg_web::res& res) {
     res.flush();
 }
 
+void startup::__close(rwg_websocket::endpoint &endpoint, std::function<void ()> close_cb) {
+    if (bool(this->_closed)) {
+        this->_closed(endpoint);
+    }
+    
+    close_cb();
+}
+
+void startup::__ping_pong(rwg_websocket::endpoint &endpoint) {
+    if (endpoint.frame().opcode() == rwg_websocket::op::op_ping) {
+        rwg_websocket::frame pong_frame;
+
+        pong_frame.fd() = endpoint.fd();
+        pong_frame.ssl() = endpoint.ssl();
+        pong_frame.use_security(this->_security);
+        pong_frame.mask() = false;
+        pong_frame.opcode() = rwg_websocket::op::op_pong;
+
+        pong_frame.write();
+    }
+    else if (this->_pong) {
+        this->_pong(endpoint);
+    }
+}
+
 void startup::use_security(bool use) {
     this->_security = use;
 }
@@ -111,7 +138,13 @@ void startup::run(int fd, std::function<void ()> close_cb) {
 
         switch (c_ws->frame().stat()) {
         case rwg_websocket::fpstat_end:
-            if (bool(this->_func)) {
+            if (c_ws->frame().fin_flag()) {
+                this->__close(*c_ws, close_cb);
+            }
+            else if (c_ws->frame().opcode() == op::op_ping || c_ws->frame().opcode() == op::op_pong) {
+                this->__ping_pong(*c_ws);
+            }
+            else if (bool(this->_func)) {
                 this->_func(*c_ws, close_cb);
             }
             c_ws->frame().reset();
@@ -185,6 +218,21 @@ void startup::init_handle(std::function<void (rwg_websocket::endpoint &)> handle
 
 void startup::remove_handle(std::function<void (rwg_websocket::endpoint &)> handler) {
     this->_remove = handler;
+}
+
+void startup::closed_handle(std::function<void (rwg_websocket::endpoint &)> handler) {
+    this->_closed = handler;
+}
+
+void startup::ping(rwg_websocket::endpoint &endpoint) {
+    rwg_websocket::frame ping_frame;
+    ping_frame.fd() = endpoint.fd();
+    ping_frame.mask() = false;
+    ping_frame.opcode() = rwg_websocket::op::op_ping;
+    ping_frame.ssl() = endpoint.ssl();
+    ping_frame.use_security(this->_security);
+
+    ping_frame.write();
 }
 
 void startup::endpoint_factory(std::function<std::unique_ptr<rwg_websocket::endpoint> (rwg_web::req &)> factory) {
