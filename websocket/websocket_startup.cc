@@ -224,6 +224,10 @@ void startup::closed_handle(std::function<void (rwg_websocket::endpoint &)> hand
     this->_closed = handler;
 }
 
+void startup::pong_handle(std::function<void (rwg_websocket::endpoint &)> handler) {
+    this->_pong = handler;
+}
+
 void startup::ping(rwg_websocket::endpoint &endpoint) {
     rwg_websocket::frame ping_frame;
     ping_frame.fd() = endpoint.fd();
