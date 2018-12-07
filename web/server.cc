@@ -203,6 +203,13 @@ void server::websocket_remove_handle(std::function<void (rwg_websocket::endpoint
 void server::websocket_init_handle(std::function<void (rwg_websocket::endpoint &)> handler) {
     this->_websocket.init_handle(handler);
 }
+void server::websocket_closed_handle(std::function<void (rwg_websocket::endpoint &)> handler) {
+    this->_websocket.closed_handle(handler);
+}
+
+void server::websocket_pong_handle(std::function<void (rwg_websocket::endpoint &)> handler) {
+    this->_websocket.pong_handle(handler);
+}
 
 void server::websocket_endpoint_factory(std::function<std::unique_ptr<rwg_websocket::endpoint> (rwg_web::req &)> factory) {
     this->_websocket.endpoint_factory(factory);
