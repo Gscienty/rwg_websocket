@@ -20,7 +20,10 @@ bool res::__putc(char c) {
 }
 
 
-res::res() : _fd(0) {}
+res::res()
+    : _fd(0)
+    , _security(false)
+    , _ssl(nullptr) {}
 
 res::~res() {}
 
@@ -93,6 +96,8 @@ void res::write_header() {
     }
 
     for (auto c : __crlf) { this->__putc(c); }
+
+    info("res[%d]: writed header", this->_fd);
 }
 
 bool res::flush() { 
