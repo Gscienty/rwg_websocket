@@ -40,9 +40,9 @@ int main() {
     };
 
     server.http_handle(web_handle);
-    server.websocket_endpoint_factory(websock_endpoint_factory);
-    server.websocket_handshake_handle([] (rwg_web::req&) -> bool { return true; });
-    server.websocket_frame_handle(websock_handle);
+    server.websocket().endpoint_factory(websock_endpoint_factory);
+    server.websocket().handshake_handle([] (rwg_web::req&) -> bool { return true; });
+    server.websocket().frame_handle(websock_handle);
 
     server.start();
 
