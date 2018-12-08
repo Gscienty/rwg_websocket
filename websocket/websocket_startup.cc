@@ -89,7 +89,7 @@ void startup::__accept(rwg_web::req& req, rwg_web::res& res) {
         this->_init(*endpoint_ptr);
     }
 
-    this->_websocks[req.fd()] = std::move(endpoint_ptr);
+    this->_endpoints[req.fd()] = std::move(endpoint_ptr);
 }
 
 void startup::__reject(rwg_web::req&, rwg_web::res& res) {
@@ -103,7 +103,7 @@ void startup::__reject(rwg_web::req&, rwg_web::res& res) {
     res.flush();
 }
 
-void startup::__close(rwg_websocket::endpoint &endpoint, std::function<void ()> close_cb) {
+void startup::__closed(rwg_websocket::endpoint &endpoint, std::function<void ()> close_cb) {
     if (bool(this->_closed)) {
         this->_closed(endpoint);
     }
@@ -130,12 +130,12 @@ void startup::use_security(bool use) {
 
 void startup::run(int fd, std::function<void ()> close_cb) {
     info("ws_startup[%d]: enter websocket startup", fd);
-    if (this->_websocks.find(fd) == this->_websocks.end()) {
+    if (this->_endpoints.find(fd) == this->_endpoints.end()) {
         warn("ws_startup[%d]: not found online ws", fd);
         close_cb();
     }
 
-    auto &c_ws = this->_websocks[fd];
+    auto &c_ws = this->_endpoints[fd];
 
     bool do_next = true;
     while (do_next) {
@@ -146,7 +146,7 @@ void startup::run(int fd, std::function<void ()> close_cb) {
         switch (c_ws->frame().stat()) {
         case rwg_websocket::fpstat_end:
             if (c_ws->frame().fin_flag()) {
-                this->__close(*c_ws, close_cb);
+                this->__closed(*c_ws, close_cb);
             }
             else if (c_ws->frame().opcode() == op::op_ping || c_ws->frame().opcode() == op::op_pong) {
                 this->__ping_pong(*c_ws);
@@ -198,17 +198,17 @@ bool startup::handshake(rwg_web::req& req, rwg_web::res& res, std::function<void
 /* } */
 
 void startup::remove(int fd) {
-    auto itr = this->_websocks.find(fd);
-    if (itr != this->_websocks.end()) {
+    auto itr = this->_endpoints.find(fd);
+    if (itr != this->_endpoints.end()) {
         if (bool(this->_remove)) {
             this->_remove(*itr->second);
         }
-        this->_websocks.erase(itr);
+        this->_endpoints.erase(itr);
     }
 }
 
 bool startup::is_websocket(int fd) {
-    return this->_websocks.find(fd) != this->_websocks.end();
+    return this->_endpoints.find(fd) != this->_endpoints.end();
 }
 
 void startup::frame_handle(std::function<void (rwg_websocket::endpoint &, std::function<void ()>)> func) {
@@ -250,4 +250,9 @@ void startup::endpoint_factory(std::function<std::unique_ptr<rwg_websocket::endp
 bool startup::available() const {
     return bool(this->_func);
 }
+
+const std::map<int, std::unique_ptr<rwg_websocket::endpoint>> &startup::endpoints() {
+    return this->_endpoints;
+}
+
 }

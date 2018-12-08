@@ -33,7 +33,7 @@ public:
 
 class startup {
 private:
-    std::map<int, std::unique_ptr<rwg_websocket::endpoint>> _websocks;
+    std::map<int, std::unique_ptr<rwg_websocket::endpoint>> _endpoints;
     std::function<void (rwg_websocket::endpoint &, std::function<void ()>)> _func;
     std::function<bool (rwg_web::req &)> _handshake;
     std::function<void (rwg_websocket::endpoint &)> _init;
@@ -48,7 +48,7 @@ private:
     void __accept(rwg_web::req &, rwg_web::res &);
     void __reject(rwg_web::req &, rwg_web::res &);
 
-    void __close(rwg_websocket::endpoint &, std::function<void ()>);
+    void __closed(rwg_websocket::endpoint &, std::function<void ()>);
     void __ping_pong(rwg_websocket::endpoint &);
 public:
     startup();
@@ -66,6 +66,8 @@ public:
     void ping(rwg_websocket::endpoint &);
     void endpoint_factory(std::function<std::unique_ptr<rwg_websocket::endpoint> (rwg_web::req &)>);
     bool available() const;
+
+    const std::map<int, std::unique_ptr<rwg_websocket::endpoint>> &endpoints();
 
 };
 
