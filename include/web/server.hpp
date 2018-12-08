@@ -46,13 +46,7 @@ public:
     void init_ssl(const char *cert, const char *key);
     void listen(std::string, short);
     void http_handle(std::function<void (rwg_web::req &, rwg_web::res &, std::function<void ()>)>);
-    void websocket_frame_handle(std::function<void (rwg_websocket::endpoint &, std::function<void ()>)>);
-    void websocket_handshake_handle(std::function<bool (rwg_web::req &)>);
-    void websocket_remove_handle(std::function<void (rwg_websocket::endpoint &)>);
-    void websocket_init_handle(std::function<void (rwg_websocket::endpoint &)>);
-    void websocket_closed_handle(std::function<void (rwg_websocket::endpoint &)>);
-    void websocket_pong_handle(std::function<void (rwg_websocket::endpoint &)>);
-    void websocket_endpoint_factory(std::function<std::unique_ptr<rwg_websocket::endpoint> (rwg_web::req &)>);
+    rwg_websocket::startup &websocket();
     void start();
     void close_handle(std::function<void (int)>);
 };

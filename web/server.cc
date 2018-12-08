@@ -188,31 +188,8 @@ void server::http_handle(std::function<void (rwg_web::req &, rwg_web::res &, std
     this->_http_handler = handler;
 }
 
-void server::websocket_frame_handle(std::function<void (rwg_websocket::endpoint &, std::function<void ()>)> handler) {
-    this->_websocket.frame_handle(handler);
-}
-
-void server::websocket_handshake_handle(std::function<bool (rwg_web::req &)> handler) {
-    this->_websocket.handshake_handle(handler);
-}
-
-void server::websocket_remove_handle(std::function<void (rwg_websocket::endpoint &)> handler) {
-    this->_websocket.remove_handle(handler);
-}
-
-void server::websocket_init_handle(std::function<void (rwg_websocket::endpoint &)> handler) {
-    this->_websocket.init_handle(handler);
-}
-void server::websocket_closed_handle(std::function<void (rwg_websocket::endpoint &)> handler) {
-    this->_websocket.closed_handle(handler);
-}
-
-void server::websocket_pong_handle(std::function<void (rwg_websocket::endpoint &)> handler) {
-    this->_websocket.pong_handle(handler);
-}
-
-void server::websocket_endpoint_factory(std::function<std::unique_ptr<rwg_websocket::endpoint> (rwg_web::req &)> factory) {
-    this->_websocket.endpoint_factory(factory);
+rwg_websocket::startup &server::websocket() {
+    return this->_websocket;
 }
 
 void server::start() {
