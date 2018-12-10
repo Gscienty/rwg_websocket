@@ -145,7 +145,7 @@ void startup::run(int fd, std::function<void ()> close_cb) {
 
         switch (c_ws->frame().stat()) {
         case rwg_websocket::fpstat_end:
-            if (c_ws->frame().fin_flag()) {
+            if (c_ws->frame().opcode() == op::op_close) {
                 this->__closed(*c_ws, close_cb);
             }
             else if (c_ws->frame().opcode() == op::op_ping || c_ws->frame().opcode() == op::op_pong) {
@@ -238,7 +238,7 @@ void startup::pong_handle(std::function<void (rwg_websocket::endpoint &)> handle
 void startup::ping(rwg_websocket::endpoint &endpoint) {
     rwg_websocket::frame ping_frame = endpoint.response();
 
-    ping_frame.opcode() = rwg_websocket::op::op_ping;
+    ping_frame.opcode() = op::op_ping;
 
     ping_frame.write();
 }
