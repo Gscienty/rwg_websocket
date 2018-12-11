@@ -198,6 +198,7 @@ void frame::parse() {
                 this->_stat = rwg_websocket::fpstat_payloadlen8_1;
             }
             else {
+                info("ws_frame[%d]: payload length [%lu]", this->_fd, this->_payload_len);
                 this->_payload.resize(this->_payload_len);
                 if (this->_mask) {
                     this->_stat = rwg_websocket::fpstat_mask_1;
@@ -213,6 +214,7 @@ void frame::parse() {
             break;
         case rwg_websocket::fpstat_payloadlen2_2:
             this->_payload_len |= static_cast<uint64_t>(c);
+            info("ws_frame[%d]: payload length [%lu]", this->_fd, this->_payload_len);
             if (this->_mask) {
                 this->_stat = rwg_websocket::fpstat_mask_1;
             }
@@ -250,6 +252,7 @@ void frame::parse() {
             break;
         case rwg_websocket::fpstat_payloadlen8_8:
             this->_payload_len |= static_cast<uint64_t>(c);
+            info("ws_frame[%d]: payload length [%lu]", this->_fd, this->_payload_len);
             if (this->_mask) {
                 this->_stat = rwg_websocket::fpstat_mask_1;
             }
@@ -271,6 +274,8 @@ void frame::parse() {
             break;
         case rwg_websocket::fpstat_mask_4:
             this->_masking_key[3] = c;
+            info("ws_frame[%d]: masking key %2x %2x %2x %2x",
+                 this->_fd, this->_masking_key[0], this->_masking_key[1], this->_masking_key[2], this->_masking_key[3]);
             this->_stat = rwg_websocket::fpstat_payload;
             break;
         case rwg_websocket::fpstat_payload:
@@ -278,6 +283,7 @@ void frame::parse() {
                 c ^ this->_masking_key[this->_payload_loaded_count % 4];
             this->_payload_loaded_count++;
             if (this->_payload_len == this->_payload_loaded_count) {
+                info("ws_frame[%d]: parse completed", this->_fd);
                 this->_stat = rwg_websocket::fpstat_end;
             }
             break;
