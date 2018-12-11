@@ -10,17 +10,17 @@
 
 #define info(s, args...) \
     fprintf(stderr, \
-            CL_COLOR_WHITE "INFO [file: \"" __FILE__"\". line: %i]" s CL_COLOR_WHITE "\n", \
+            CL_COLOR_WHITE "INFO [file: \"" __FILE__"\". line: %i] " s CL_COLOR_WHITE "\n", \
             __LINE__, ##args)
 
 #define warn(s, args...) \
     fprintf(stderr, \
-            CL_COLOR_YELLOW "WARN [file: \"" __FILE__"\". line: %i]" s CL_COLOR_WHITE "\n", \
+            CL_COLOR_YELLOW "WARN [file: \"" __FILE__"\". line: %i] " s CL_COLOR_WHITE "\n", \
             __LINE__, ##args)
 
 #define error(s, args...) \
     fprintf(stderr, \
-            CL_COLOR_RED "INFO [file: \"" __FILE__"\". line: %i]" s CL_COLOR_WHITE "\n", \
+            CL_COLOR_RED "INFO [file: \"" __FILE__"\". line: %i] " s CL_COLOR_WHITE "\n", \
             __LINE__, ##args)
 #else
 #define info(s, ...)
