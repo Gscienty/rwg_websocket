@@ -38,8 +38,10 @@ bool startup::__is_websocket_handshake(rwg_web::req &req) {
         warn("ws_startup[%d]： not found parameter: Connection", req.fd());
         return false;
     }
-    if (connection->second != "Upgrade") {
-        warn("ws_startup[%d]: parameter Connection's value not \"Upgrade\"", req.fd());
+    if (connection->second.find("Upgrade") == std::string::npos) {
+        warn("ws_startup[%d]: parameter Connection's value not \"Upgrade\", parameter value: %s",
+             req.fd(),
+             connection->second.c_str());
         return false;
     }
 
